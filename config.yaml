@@ -1,0 +1,68 @@
+# Default config; override via environment or CLI
+
+sentiment:
+  text:
+    engine: vader  # vader | none
+  audio:
+    engine: rms     # rms | ser | auto | none
+    # Prefer offline RMS by default to avoid large model downloads.
+    # If using 'ser', set a local model path here to avoid downloads, e.g. D:/models/superb/hubert-large-superb-er
+    model: superb/hubert-large-superb-er
+    local_only: true
+
+tts:
+  enable: true
+  kokoro:
+    # See https://github.com/hexgrad/kokoro and HF: hexgrad/Kokoro-82M
+    # Voices: e.g., af_heart (English female), mf_rap (male), etc.
+    voice: af_heart
+    # Language code: 'a' = automatic (multi), 'en', 'es', etc.
+    lang: a
+    out_path: response.wav
+  # If true, play TTS audio through default Windows output automatically
+  auto_play: true
+  # If true, play asynchronously (may cut off if app exits). Default false = wait until playback finishes.
+  play_async: false
+
+memory:
+  provider: qdrant  # qdrant | stub
+  qdrant:
+    persona: "Nova is friendly and loves learning about the user and herself. Rule 1: Be friendly. Rule 2: Be helpful."
+    user_label: "User is Noah."
+    # Connection reads from environment (.env):
+    # QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION, QDRANT_DIM, QDRANT_DISTANCE
+  # Auto-capture important user facts into core memory
+  autocapture: true
+  auto:
+    enable: true
+    importance_threshold: 6
+    max_items: 4
+
+conversation:
+  # Number of recent chat messages to include for short-term memory
+  window_messages: 10
+
+models:
+  device: cuda   # auto | cuda | cpu
+  cpu_safe: true # if true, skip heavy models on CPU
+  llm:
+    enable: false
+    # Option A: Use a local OpenAI-compatible server (LM Studio/Ollama/vLLM)
+    provider: openai_compat   # openai_compat | transformers
+    base_url: http://localhost:1234/v1  # LM Studio default
+    id: gemma-3-4b                     # LM Studio/Ollama model id
+    local_only: true                  # do not hit the network
+    revision: null                    # optional local revision tag
+    max_new_tokens: 128
+    temperature: 0.7
+    thinking: false
+  vlm:
+    enable: true
+    # For vision locally, prefer Transformers with a local model directory.
+    # Many OpenAI-compatible servers don't support vision yet.
+    provider: transformers   # openai_compat | transformers
+    # base_url: http://localhost:1234/v1
+    # id when using transformers should be a local folder path:
+    id: D:/models/Qwen/Qwen2.5-VL-7B-Instruct
+    local_only: true
+    max_new_tokens: 128

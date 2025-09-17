@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lyra - AI Companion That Remembers You</title>
+  <link rel="icon" href="/web/lyra/favicon.svg" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#343541" />
+  <meta name="description" content="Meet Lyra, a personalized AI companion that listens, remembers, and grows with you. Mood-aware, private by default, and always there when you need someone to talk to." />
+  <meta property="og:title" content="Lyra - AI Companion That Remembers You" />
+  <meta property="og:description" content="Personalized, mood-aware, private by default. Lyra remembers what matters and grows with you." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="/web/landing.css" />
+  <style id="a11y">.sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>
+  <script>
+    function applySavedTheme(){
+      const t = localStorage.getItem('theme') || 'dark';
+      document.body.classList.toggle('light', t==='light');
+    }
+    function toggleTheme(){
+      const light = !document.body.classList.contains('light');
+      document.body.classList.toggle('light', light);
+      localStorage.setItem('theme', light ? 'light' : 'dark');
+    }
+    window.addEventListener('DOMContentLoaded', applySavedTheme);
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Lyra</div>
+    <div class="top-right">
+      <a class="btn small ghost" href="/web/index.html">Open App</a>
+    </div>
+  </header>
+
+  <main class="hero" id="hero">
+    <aside class="hero-left">
+      <div class="avatar-card">
+        <video class="avatar-photo" src="/web/assets/nova_hero.mp4" autoplay muted loop playsinline preload="auto" poster="/web/assets/nova_avatar.jpg" aria-label="Lyra hero video"></video>
+      </div>
+    </aside>
+    <section class="hero-right">
+      <h1 class="title" id="headline">An AI companion that grows with you.</h1>
+      <p class="subtitle">Lyra is a personalized AI companion that listens, remembers, and meets you where you are, so every chat feels more human than the last.</p>
+      <div class="cta">
+        <a href="/web/index.html" class="btn primary">Meet Lyra</a>
+      </div>
+      <div class="micro-trust">Private by default &bull; You control what's saved</div>
+    </section>
+  </main>
+  
+  <!-- Memory Demo: See How Lyra Remembers You -->
+  <section id="memory-demo" class="mem-demo-section">
+    <div class="mem-container">
+      <div class="mem-intro">
+        <h3 class="mem-title">See How Lyra Remembers You</h3>
+        <p class="mem-subtitle">Experience how Lyra remembers your stories, learns your personality, and connects conversations to build a real relationship.</p>
+      </div>
+
+      <div class="mem-card" aria-live="polite">
+        <div class="mem-header">
+          <h4 id="memScenarioTitle" class="mem-scn-title">Remembering Your Stories</h4>
+          <div class="mem-actions">
+            <button id="memStart" class="btn primary" data-testid="button-start-demo">Start Demo</button>
+          </div>
+        </div>
+
+        <div id="memMsgs" class="mem-msgs">
+          <div class="mem-empty">Click "Start Demo" to see how Lyra's memory works</div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+  
+  <!-- Value props (Why Lyra?) -->
+  <section id="value" class="value">
+    <div class="value-card">
+      <h2>More than replies&mdash;real connection.</h2>
+      <p>Most apps talk at you. Lyra talks with you&mdash;bringing memory, emotion, and continuity to every moment.</p>
+    </div>
+  </section>
+
+  <!-- Features (pared-down) -->
+  <section id="features" class="features">
+    <div class="feature"><h3>Memory that deepens</h3><p>Long-term memory keeps your stories, goals, and people straight. You can browse, edit, or wipe it anytime.</p></div>
+    <div class="feature"><h3>Mood-aware conversation</h3><p>Lyra adapts tone, pace, and expressions to match how you sound&mdash;and how you feel.</p></div>
+    <div class="feature"><h3>Voice &amp; face, or just text</h3><p>Choose chat, talk, or a lifelike avatar with subtle breath, blinks, and micro-expressions.</p></div>
+  </section>
+
+  
+
+  
+
+  
+
+  <!-- Q&A -->
+  <section id="qna" class="faq">
+    <h2>Questions &amp; answers</h2>
+    <details class="faq-item">
+      <summary>What can Lyra remember?</summary>
+      <p>People, preferences, plans, and important facts you share. You decide what’s saved.</p>
+    </details>
+    <details class="faq-item">
+      <summary>How do I edit or delete memories?</summary>
+      <p>Open the memory view in the app to browse, edit, or wipe items at any time.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Can Lyra start conversations on her own?</summary>
+      <p>Yes. With proactive mode on, she may gently check in during quiet moments.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Does Lyra work offline?</summary>
+      <p>Yes. Local models and local storage are supported; online tools are optional.</p>
+    </details>
+    <details class="faq-item">
+      <summary>How do I turn proactive mode on/off?</summary>
+      <p>Use the Continuous toggle in the chat app or disable proactive checks in settings.</p>
+    </details>
+  </section>
+
+  <footer class="footer">
+    <div class="foot-inner">
+      <div>&copy; <span id="y"></span> Lyra</div>
+      <div class="foot-actions">
+        <a class="btn small ghost" href="/web/index.html">Open App</a>
+      </div>
+    </div>
+    <script>document.getElementById('y').textContent = new Date().getFullYear();</script>
+  </footer>
+
+  <!-- Demo Modal -->
+  <div id="demoModal" class="modal" hidden>
+    <div class="modal-panel">
+      <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
+      <video id="demoVideo" controls preload="auto" poster="/web/assets/nova_avatar.jpg">
+        <source src="/web/assets/nova_video.mp4" type="video/mp4" />
+      </video>
+    </div>
+  </div>
+
+  <script>
+    // Demo modal
+    (function(){
+      const openers = [document.getElementById('watchDemo'), document.getElementById('playDemo')].filter(Boolean);
+      const modal = document.getElementById('demoModal');
+      const video = document.getElementById('demoVideo');
+      const close = document.getElementById('modalClose');
+      const open = ()=>{ modal.hidden = false; video.currentTime = 0; video.play().catch(()=>{}); };
+      const hide = ()=>{ modal.hidden = true; try{ video.pause(); }catch{} };
+      openers.forEach(b=> b.addEventListener('click', open));
+      close?.addEventListener('click', hide);
+      modal?.addEventListener('click', (e)=>{ if(e.target === modal) hide(); });
+      document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && !modal.hidden) hide(); });
+    })();
+
+    // --- Memory Demo (vanilla JS port of the React snippet) ---
+    (function(){
+      const AVATAR = '/web/assets/nova_avatar.jpg';
+      const scenarios = [
+        {
+          title: 'Remembering Your Stories',
+          messages: [
+            { id: 1, type: 'user', content: "I'm always the one organizing hangouts with friends, but sometimes I just want someone else to plan things" },
+            { id: 2, type: 'lyra', content: 'That sounds exhausting being the default organizer! I can hear that you care about bringing people together, but also need a break sometimes.', memoryNote: 'Organizer personality, sometimes feels burden of planning' },
+            { id: 3, type: 'user', content: 'My friend surprised me with tickets to a concert today!' },
+            { id: 4, type: 'lyra', content: "What a thoughtful surprise! I bet that felt especially nice since you're usually the one planning things for everyone. How did it feel to be on the receiving end?", memoryNote: 'Appreciated being planned for instead of doing the planning' },
+          ]
+        }
+      ];
+
+      let current = 0;
+      let isPlaying = false;
+      let timers = [];
+
+      const $ = (id)=> document.getElementById(id);
+      const titleEl = memScenarioTitle;
+      const msgsEl = memMsgs;
+      const startBtn = memStart;
+
+      function clearTimers(){ timers.forEach(t=> clearTimeout(t)); timers = []; }
+      function setButtons(){ startBtn.disabled = isPlaying; }
+      function setTitle(){ titleEl.textContent = scenarios[current].title; }
+      function emptyState(){ msgsEl.innerHTML = '<div class="mem-empty">Click "Start Demo" to see how Lyra\'s memory works</div>'; }
+
+      function msgNode(m){
+        const row = document.createElement('div');
+        row.className = 'mem-msg ' + (m.type==='user' ? 'right' : 'left');
+        if (m.type==='lyra'){
+          const avatar = document.createElement('img');
+          avatar.src = AVATAR; avatar.alt = 'Lyra Avatar'; avatar.className = 'mem-avatar';
+          row.appendChild(avatar);
+        }
+        const wrap = document.createElement('div');
+        wrap.className = 'mem-wrap';
+        const bubble = document.createElement('div');
+        bubble.className = 'mem-bubble ' + (m.type==='user' ? 'user' : 'lyra');
+        bubble.textContent = m.content;
+        wrap.appendChild(bubble);
+        if (m.memoryNote){
+          const note = document.createElement('div');
+          note.className = 'mem-note';
+          note.innerHTML = '<span class="spark">�o�</span> Memory: ' + m.memoryNote;
+          wrap.appendChild(note);
+        }
+        row.appendChild(wrap);
+        if (m.type==='user'){
+          const userIcon = document.createElement('div');
+          userIcon.className = 'mem-user-ico';
+          userIcon.textContent = 'dY';
+          row.appendChild(userIcon);
+        }
+        return row;
+      }
+
+      function renderMessages(list){
+        msgsEl.innerHTML = '';
+        list.forEach(m => msgsEl.appendChild(msgNode(m)));
+        msgsEl.scrollTop = msgsEl.scrollHeight;
+      }
+
+      function startDemo(){
+        if (isPlaying) return;
+        isPlaying = true; setButtons();
+        msgsEl.innerHTML = ''; clearTimers();
+        const seq = scenarios[current].messages;
+        const visible = [];
+        seq.forEach((m, idx)=>{
+          const t = setTimeout(()=>{
+            visible.push(m);
+            renderMessages(visible);
+            if (idx === seq.length - 1){
+              const t2 = setTimeout(()=>{ isPlaying = false; setButtons(); }, 500);
+              timers.push(t2);
+            }
+          }, idx * 1500);
+          timers.push(t);
+        });
+      }
+
+      startBtn.addEventListener('click', startDemo);
+
+      setTitle(); emptyState(); setButtons();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+requests
+httpx
+websockets
+flask
+python-dotenv
+PyYAML
+rapidfuzz
+numpy
+qdrant-client
+kokoro>=0.9.2
+python-jose[cryptography]

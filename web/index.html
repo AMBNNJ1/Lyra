@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lyra - Chat</title>
+  <link rel="icon" href="/web/lyra/favicon.svg" />
+  <link rel="stylesheet" href="/web/styles.css" />
+  <script async crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"></script>
+  <script>
+    let historyPoll = null;
+    let lastSeenCount = 0;
+    let lastSeenFp = "";
+    let emoPoll = null;
+    let clerkInstance = null;
+    let authToken = null;
+    let hasActivatedAuth = false;
+    async function post(path, body){
+      const headers = {'Content-Type':'application/json'};
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      const r = await fetch(path, { method:'POST', headers, body: JSON.stringify(body||{}) });
+      if(r.status === 401){ openClerkModal(); throw new Error('unauthorized'); }
+      if(!r.ok) throw new Error('request failed');
+      return await r.json();
+    }
+    async function get(path){
+      const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+      const r = await fetch(path, { headers });
+      if(r.status === 401){ openClerkModal(); throw new Error('unauthorized'); }
+      if(!r.ok) throw new Error('request failed');
+      return await r.json();
+    }
+    function msgEl(role, text){
+      const wrap = document.createElement('div');
+      wrap.className = 'message ' + role;
+      const av = document.createElement('div');
+      av.className = 'avatar' + (role==='assistant' ? ' ai' : ' user');
+      if (role === 'assistant') {
+        const img = document.createElement('img');
+        img.src = '/web/assets/nova_avatar.jpg';
+        img.alt = 'Lyra avatar';
+        av.appendChild(img);
+      } else {
+        av.textContent = 'You';
+      }
+      const content = document.createElement('div');
+      content.className = 'content';
+      content.textContent = text || '';
+      wrap.appendChild(av); wrap.appendChild(content);
+      return wrap;
+    }
+    function msgContentRef(el){ return el.querySelector('.content'); }
+    function scrollToBottom(){
+      const sc = document.getElementById('scroller');
+      if(!sc) return;
+      // Twice, to catch layout after images/fonts paint
+      requestAnimationFrame(()=>{
+        sc.scrollTop = sc.scrollHeight;
+        requestAnimationFrame(()=>{ sc.scrollTop = sc.scrollHeight; });
+      });
+    }
+    function autoResize(el){
+      el.style.height = 'auto';
+      const next = Math.min(220, Math.max(44, el.scrollHeight));
+      el.style.height = next + 'px';
+    }
+    function openClerkModal(){
+      const modal = document.getElementById('authModal');
+      if (!modal) return;
+      const root = document.getElementById('clerkSignIn');
+      if (!clerkInstance){
+        if (root) root.innerHTML = '<p class="error">Authentication service is still loading...</p>';
+        modal.hidden = false;
+        return;
+      }
+      if (root){
+        root.innerHTML = '';
+        clerkInstance.mountSignIn(root, { appearance: { elements: { card: 'card' } } });
+      }
+      modal.hidden = false;
+    }
+
+    async function initClerk(){
+      try {
+        const res = await fetch('/api/auth/config');
+        if (!res.ok) throw new Error('config request failed');
+        const data = await res.json();
+        const pk = data.publishableKey;
+        if (!pk){
+          console.warn('[clerk] publishable key missing');
+          const root = document.getElementById('clerkSignIn');
+          if (root) root.innerHTML = '<p class="error">Clerk publishable key is not configured.</p>';
+          return;
+        }
+        await new Promise((resolve) => {
+          if (window.Clerk) return resolve();
+          const check = () => { if (window.Clerk) resolve(); else setTimeout(check, 20); };
+          check();
+        });
+        clerkInstance = new window.Clerk(pk);
+        await clerkInstance.load();
+        handleClerkState();
+        clerkInstance.addListener(handleClerkState);
+      } catch (err) {
+        console.error('[clerk] init failed', err);
+        const root = document.getElementById('clerkSignIn');
+        if (root) root.innerHTML = `<p class="error">Authentication service unavailable.</p>`;
+      }
+    }
+
+    async function refreshAuthToken(){
+      if (!clerkInstance || !clerkInstance.session) {
+        authToken = null;
+        return;
+      }
+      try {
+        authToken = await clerkInstance.session.getToken({ template: 'default' });
+      } catch (err) {
+        console.warn('[clerk] token fetch failed', err);
+        authToken = null;
+      }
+    }
+
+    async function handleClerkState(){
+      const loginBtn = document.getElementById('loginBtn');
+      const userContainer = document.getElementById('clerkUserButton');
+      const modal = document.getElementById('authModal');
+      if (!clerkInstance){
+        if (loginBtn) loginBtn.hidden = false;
+        if (userContainer){ userContainer.hidden = true; userContainer.innerHTML = ''; }
+        return;
+      }
+      if (clerkInstance.isSignedIn){
+        await refreshAuthToken();
+        if (loginBtn) loginBtn.hidden = true;
+        if (userContainer){
+          userContainer.hidden = false;
+          userContainer.innerHTML = '';
+          clerkInstance.mountUserButton(userContainer, { appearance: { elements: { rootBox: 'user-button' } } });
+        }
+        if (modal) modal.hidden = true;
+        if (!hasActivatedAuth && authToken){
+          activateAuthenticatedFlows();
+        }
+      } else {
+        authToken = null;
+        hasActivatedAuth = false;
+        if (userContainer){ userContainer.hidden = true; userContainer.innerHTML = ''; }
+        if (loginBtn) loginBtn.hidden = false;
+        if (modal) modal.hidden = true;
+        if (historyPoll){ clearInterval(historyPoll); historyPoll = null; }
+        if (emoPoll){ clearInterval(emoPoll); emoPoll = null; }
+      }
+    }
+
+    function activateAuthenticatedFlows(){
+      hasActivatedAuth = true;
+      const cont = document.getElementById('cont');
+      if (cont){ cont.checked = true; toggleContinuous(cont); }
+      if (!emoPoll){
+        fetchEmotion();
+        emoPoll = setInterval(fetchEmotion, 1500);
+      }
+    }
+    function startTalking(){
+      const vid = document.getElementById('avatarVideo');
+      const fallback = document.getElementById('avatarFallback');
+      if(!vid) return;
+      try{
+        if (vid.getAttribute('data-state') === 'talking') return;
+        vid.setAttribute('data-state', 'talking');
+        vid.loop = true; // keep lips moving if response is long
+        vid.src = '/web/assets/nova_talking.mp4';
+        const play = () => { vid.play().catch(()=>{}); };
+        vid.addEventListener('canplay', play, { once: true });
+        if (fallback) fallback.hidden = true;
+        vid.addEventListener('error', () => { if (fallback) fallback.hidden = false; }, { once: true });
+        if (vid.readyState >= 2) play();
+      }catch{}
+    }
+    function stopTalking(){
+      const vid = document.getElementById('avatarVideo');
+      const fallback = document.getElementById('avatarFallback');
+      if(!vid) return;
+      try{
+        vid.pause();
+        vid.removeAttribute('data-state');
+        // revert to idle loop
+        vid.loop = true;
+        vid.src = '/web/assets/nova_hero.mp4';
+        const playIdle = () => { vid.play().catch(()=>{}); };
+        vid.addEventListener('canplay', playIdle, { once: true });
+        if (fallback) fallback.hidden = true;
+        if (vid.readyState >= 2) playIdle();
+      }catch{}
+    }
+    function updateEmotionUI(d){
+      try{
+        const card = document.getElementById('emotionCard');
+        if(!card) return;
+        const name = (d && d.primary) ? String(d.primary) : 'neutral';
+        const inten = Math.max(0, Math.min(1, Number(d?.intensity||0)));
+        const pct = Math.round(inten*100);
+        const EMOJI = {joy:'joy', distress:'distress', hope:'hope', fear:'fear', relief:'relief', disappointment:'disappointed', gratitude:'grateful', anger:'angry', pride:'proud', shame:'remorse', frustration:'frustrated', admiration:'admire', reproach:'concern', surprise:'surprised', neutral:'neutral'};
+        const COLOR = {joy:'#2bd576', distress:'#ff4d4f', hope:'#6aa9ff', fear:'#ff7f50', relief:'#7ee0ff', disappointment:'#b0b6c0', gratitude:'#ffd166', anger:'#ff4d4f', pride:'#7c5cff', shame:'#ff9ece', frustration:'#ff8a3d', admiration:'#6aa9ff', reproach:'#ff6b6b', surprise:'#00e0ff', neutral:'#98a2b3'};
+        document.getElementById('emEmoji').textContent = EMOJI[name] || EMOJI.neutral;
+        document.getElementById('emName').textContent = name;
+        document.getElementById('emStrength').textContent = pct + '%';
+        const fill = document.getElementById('emFill');
+        if (fill){ fill.style.width = pct + '%'; }
+        const color = COLOR[name] || COLOR.neutral;
+        card.style.setProperty('--emo-color', color);
+        const lv = d && d.levels ? d.levels : {};
+        const tops = Object.entries(lv).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>`<span class=\"chip\">${k}</span>`).join('');
+        const tags = document.getElementById('emTags');
+        if (tags) tags.innerHTML = tops;
+        const meter = document.querySelector('.em-meter');
+        meter?.setAttribute('aria-valuenow', String(pct));
+      }catch{}
+    }
+    async function fetchEmotion(){
+      if (!authToken) return;
+      try{
+        const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+        const r = await fetch('/api/emotion', { headers });
+        if(!r.ok) return;
+        const d = await r.json();
+        updateEmotionUI(d);
+      }catch{}
+    }
+    async function send(){
+      if (!authToken) { openClerkModal(); return; }
+      const ta = document.getElementById('ta');
+      const sendBtn = document.getElementById('send');
+      const txt = ta.value.trim();
+      if(!txt) return;
+      ta.value=''; autoResize(ta);
+      const chat = document.getElementById('chat');
+      // Show only the latest user message - clear previous ones
+      chat.innerHTML = '';
+      const userMsg = msgEl('user', txt);
+      const aiMsg = msgEl('assistant', '');
+      chat.appendChild(userMsg);
+      const aiContent = msgContentRef(aiMsg);
+      if (aiContent) aiContent.textContent = '...';
+      chat.appendChild(aiMsg);
+      scrollToBottom();
+      sendBtn.disabled = true;
+      // Streaming via SSE over fetch body
+      try{
+        const headers = {'Content-Type':'application/json'};
+        if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+        const res = await fetch('/api/chat/stream', { method:'POST', headers, body: JSON.stringify({message: txt}) });
+        if(res.status===401){ openClerkModal(); throw new Error('Sign in to continue'); }
+        if(!res.ok || !res.body){ throw new Error('request failed'); }
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '';
+        let speech = '';
+        startTalking();
+        while(true){
+          const {value, done} = await reader.read();
+          if(done) break;
+          buf += dec.decode(value, {stream:true});
+          let idx;
+          while((idx = buf.indexOf('\n\n')) !== -1){
+            const chunk = buf.slice(0, idx); buf = buf.slice(idx+2);
+            const line = chunk.split('\n').find(l=>l.startsWith('data:')) || '';
+            const data = line.slice(5).trim();
+            if(!data) continue;
+            if(data === '[DONE]') { break; }
+            try{
+              // YAML one-line or JSON; try JSON first
+              const obj = JSON.parse(data);
+              const delta = obj.delta || '';
+              if(delta){ speech += delta; if (aiContent) aiContent.textContent = speech; }
+            }catch{
+              // try to extract after "delta: " pattern
+              const m = data.match(/delta:\s*(.*)$/);
+              if(m && m[1]){ speech += m[1]; if (aiContent) aiContent.textContent = speech; }
+            }
+            scrollToBottom();
+          }
+        }
+      }catch(e){
+        const err = '(error) ' + (e?.message||'request failed');
+        if (aiContent) aiContent.textContent = err;
+      } finally {
+        stopTalking();
+        if (aiContent) {
+          const finalText = speech.trim();
+          aiContent.textContent = finalText ? finalText : aiContent.textContent || '...';
+        }
+      }
+      sendBtn.disabled = false; scrollToBottom();
+    }
+    async function toggleContinuous(cb){
+      if (!authToken) { cb.checked = false; openClerkModal(); return; }
+      const on = cb.checked;
+      try{ await post('/api/continuous', { enable: on }); }catch{}
+      // Start/stop backend history polling to surface proactive messages
+      if (on){
+        if (historyPoll) clearInterval(historyPoll);
+        // Prime lastSeenCount to current count to avoid replaying existing history
+        try{
+          const r0 = await fetch('/api/history');
+          if (r0.ok){
+            const d0 = await r0.json();
+            const msgs0 = d0.messages || [];
+            lastSeenCount = d0.count || msgs0.length || 0;
+            const last0 = msgs0[lastSeenCount-1] || null;
+            lastSeenFp = last0 ? `${last0.role}|${(last0.content||'').slice(-128)}` : "";
+          }
+        }catch{}
+        historyPoll = setInterval(async ()=>{
+          try{
+            const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+            const r = await fetch('/api/history', { headers });
+            if(!r.ok) return;
+            const data = await r.json();
+            const msgs = data.messages || [];
+            const n = data.count || msgs.length || 0;
+            const last = msgs[n-1] || null;
+            const fp = last ? `${last.role}|${(last.content||'').slice(-128)}` : "";
+            // Detect either growth in count OR change in last fingerprint (covers truncated windows)
+            if ((n > lastSeenCount) || (fp && fp !== lastSeenFp)){
+              lastSeenCount = n;
+              lastSeenFp = fp;
+            }
+          }catch{}
+        }, 1500);
+      }else{
+        if (historyPoll){ clearInterval(historyPoll); historyPoll = null; }
+      }
+    }
+    function applySavedTheme(){
+      const t = localStorage.getItem('theme') || 'dark';
+      document.body.classList.toggle('light', t==='light');
+    }
+    function toggleTheme(){
+      const light = !document.body.classList.contains('light');
+      document.body.classList.toggle('light', light);
+      localStorage.setItem('theme', light ? 'light' : 'dark');
+    }
+    window.addEventListener('DOMContentLoaded', async ()=>{
+      applySavedTheme();
+      await initClerk();
+      // Ensure avatar video loops and autoplays; show image if video fails
+      const vid = document.getElementById('avatarVideo');
+      const fallback = document.getElementById('avatarFallback');
+      if (vid) {
+        try {
+          vid.muted = true; vid.loop = true;
+          const start = () => { if (fallback) fallback.hidden = true; vid.play().catch(()=>{}); };
+          vid.addEventListener('canplay', start, { once: true });
+          vid.addEventListener('loadeddata', start, { once: true });
+          vid.addEventListener('playing', () => { if (fallback) fallback.hidden = true; });
+          vid.addEventListener('error', () => { if (fallback) fallback.hidden = false; });
+          if (vid.readyState >= 2) start();
+          setTimeout(() => { if ((vid.readyState < 2 || vid.paused) && fallback) fallback.hidden = false; }, 1200);
+        } catch {}
+      }
+      const ta = document.getElementById('ta');
+      ta.addEventListener('input', ()=> autoResize(ta));
+      ta.addEventListener('keydown', (e)=>{
+        if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }
+      });
+      document.getElementById('send').addEventListener('click', send);
+      // Mic button toggles Web Speech API if available
+      const micBtn = document.getElementById('mic');
+      if (micBtn){
+        let recog = null; let listening = false; let interim = '';
+        const Tip = document.getElementById('voiceTip');
+        try{
+          const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if (SR){
+            recog = new SR();
+            recog.lang = 'en-US';
+            recog.interimResults = true;
+            recog.continuous = false;
+            recog.onresult = (e)=>{
+              let final = '';
+              interim = '';
+              for (let i=e.resultIndex; i<e.results.length; i++){
+                const r = e.results[i];
+                if (r.isFinal) final += (r[0]?.transcript||''); else interim += (r[0]?.transcript||'');
+              }
+              const t = (final + (interim?' '+interim:'')).trim();
+              ta.value = t; autoResize(ta);
+            };
+            recog.onerror = ()=>{ listening=false; micBtn.setAttribute('aria-pressed','false'); Tip.hidden=false; };
+            recog.onend = ()=>{ listening=false; micBtn.setAttribute('aria-pressed','false'); Tip.hidden=true; const t=(ta.value||'').trim(); if(t) send(); };
+          } else {
+            Tip.hidden = false;
+          }
+        }catch{ Tip.hidden = false; }
+        micBtn.addEventListener('click', ()=>{
+          if (!recog){ return; }
+          if (!listening){ try{ recog.start(); listening=true; micBtn.setAttribute('aria-pressed','true'); Tip.hidden=true; }catch{} }
+          else { try{ recog.stop(); }catch{} }
+        });
+      }
+      const cont = document.getElementById('cont');
+      cont.addEventListener('change', (e)=> toggleContinuous(e.target));
+      const voiceBtn = document.getElementById('voiceMode');
+      voiceBtn?.addEventListener('click', ()=>{ window.location.href = '/voice'; });
+      document.getElementById('theme').addEventListener('click', toggleTheme);
+      const loginBtn = document.getElementById('loginBtn');
+      loginBtn?.addEventListener('click', () => { openClerkModal(); });
+      const authClose = document.getElementById('authClose');
+      authClose?.addEventListener('click', () => { const m = document.getElementById('authModal'); if (m) m.hidden = true; });
+      // Auto-scroll whenever chat content changes (including streaming)
+      const chat = document.getElementById('chat');
+      const mo = new MutationObserver(() => scrollToBottom());
+      mo.observe(chat, { childList: true, subtree: true, characterData: true });
+      window.addEventListener('resize', scrollToBottom);
+      scrollToBottom();
+
+      // Micro-gestures removed
+    });
+  </script>
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#343541" />
+  <style id="a11y">.sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <!-- Using system fonts to avoid CDN dependency -->
+  </head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div style="position:absolute; right:16px; display:flex; gap:8px; align-items:center;">
+        <button id="loginBtn" class="theme-btn" aria-label="Sign in">Sign in</button>
+        <div id="clerkUserButton" class="user-button" hidden></div>
+        <button id="voiceMode" class="theme-btn icon-only" aria-label="Open voice mode"><span aria-hidden="true">&#127908;</span></button>
+        <button id="theme" class="theme-btn" aria-label="Toggle theme">Theme</button>
+      </div>
+    </div>
+    <div class="main">
+      <aside class="avatar-pane">
+        <div class="unity-wrap">
+          <div id="avatarFrame" class="avatar-frame">
+            <video id="avatarVideo" class="avatar-video" src="/web/assets/nova_hero.mp4" autoplay muted loop playsinline preload="auto" aria-label="Avatar video"></video>
+            <img id="avatarFallback" class="avatar-photo" src="/web/assets/nova_avatar.jpg" alt="Avatar" hidden />
+          </div>
+          <div id="emotionCard" class="emotion-card" aria-live="polite">
+            <div class="em-head">
+              <span id="emEmoji" class="em-emoji">neutral</span>
+              <span id="emName" class="em-name">neutral</span>
+              <span id="emStrength" class="em-strength">0%</span>
+            </div>
+            <div class="em-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div id="emFill" class="em-fill"></div>
+            </div>
+            <div id="emTags" class="em-tags"></div>
+          </div>
+        </div>
+      </aside>
+      <section class="chat-pane">
+        <div id="scroller" class="chat-scroll">
+          <div id="chat" class="chat">
+            <!-- Messages will appear here -->
+          </div>
+        </div>
+        <div class="composer-wrap">
+          <div class="composer">
+            <div class="controls">
+              <label class="switch"><input id="cont" type="checkbox" /> Continuous</label>
+              <div class="tip">Press Enter to send - Shift+Enter for newline</div>
+            </div>
+            <div class="inputbar">
+              <textarea id="ta" placeholder="Message Lyra..." spellcheck="true"></textarea>
+              <button id="mic" class="send" aria-pressed="false" aria-label="Speak">&#127908;</button>
+              <button id="send" class="send" aria-label="Send">Send</button>
+            </div>
+            <div id="voiceTip" class="hint" hidden>Voice recognition unavailable. Try Chrome on HTTPS.</div>
+
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Auth Modal -->
+  <div id="authModal" class="rpm-modal" hidden>
+    <div class="rpm-panel" style="max-width:520px; height:auto; padding:20px;">
+      <button class="rpm-close" id="authClose">X</button>
+      <div id="clerkSignIn" class="clerk-signin"></div>
+    </div>
+  </div>
+</body>
+</html>

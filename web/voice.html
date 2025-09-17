@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lyra Voice Mode</title>
+  <link rel="stylesheet" href="/web/voice.css" />
+</head>
+<body>
+  <div class="call-shell">
+    <header class="call-header">
+      <button id="backBtn" type="button" class="header-btn">
+        <span class="icon" aria-hidden="true">←</span>
+        <span class="label">Back to Chat</span>
+      </button>
+    </header>
+    <main class="call-main">
+      <section class="call-stage">
+        <div class="avatar-wrapper">
+          <div class="avatar-halo" id="avatarRing">
+            <img src="/web/assets/nova_avatar.jpg" alt="Lyra avatar" />
+          </div>
+          <div class="call-name">Lyra</div>
+          <p class="call-status" id="voiceStatus">Tap the mic to speak</p>
+        </div>
+      </section>
+    </main>
+    <footer class="call-footer">
+      <button id="voiceMic" class="mic-button" type="button" aria-pressed="false">
+        <span class="mic-icon" aria-hidden="true">🎙️</span>
+        <span class="mic-label" id="micLabel">Tap to Speak</span>
+      </button>
+      <div class="voice-note" id="voiceNote"></div>
+    </footer>
+  </div>
+  <script>
+  (() => {
+    const ring = document.getElementById('avatarRing');
+    const statusEl = document.getElementById('voiceStatus');
+    const micBtn = document.getElementById('voiceMic');
+    const backBtn = document.getElementById('backBtn');
+    const noteEl = document.getElementById('voiceNote');
+    const micLabel = document.getElementById('micLabel');
+    if (!ring || !statusEl || !micBtn) {
+      console.error('Voice mode UI missing required elements.');
+      return;
+    }
+
+    let recognition = null;
+    let listening = false;
+    let awaitingReply = false;
+    let currentAudio = null;
+    let currentUrl = null;
+
+    function setStatus(msg) {
+      statusEl.textContent = msg || '';
+    }
+
+    function setListening(on) {
+      listening = on;
+      ring.classList.toggle('listening', !!on);
+      micBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      if (micLabel) {
+        micLabel.textContent = on ? 'Mute Mic' : 'Tap to Speak';
+      } else {
+        micBtn.textContent = on ? 'Mute Mic' : 'Tap to Speak';
+      }
+    }
+
+    function setSpeaking(on) {
+      ring.classList.toggle('speaking', !!on);
+    }
+
+    function cleanupAudio() {
+      if (currentAudio) {
+        try { currentAudio.pause(); } catch (err) {}
+      }
+      if (currentUrl) {
+        try { URL.revokeObjectURL(currentUrl); } catch (err) {}
+      }
+      currentAudio = null;
+      currentUrl = null;
+      setSpeaking(false);
+    }
+
+    async function speakText(text) {
+      const phrase = (text || '').trim();
+      if (!phrase) return;
+      try {
+        const resp = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: phrase })
+        });
+        if (!resp.ok) {
+          throw new Error('tts_failed');
+        }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        cleanupAudio();
+        currentUrl = url;
+        currentAudio = new Audio(url);
+        currentAudio.onended = () => cleanupAudio();
+        currentAudio.onerror = () => cleanupAudio();
+        setSpeaking(true);
+        await currentAudio.play().catch((err) => {
+          console.error('Audio play rejected', err);
+          cleanupAudio();
+        });
+      } catch (err) {
+        console.error('speakText error', err);
+        setStatus('Unable to play audio.');
+        cleanupAudio();
+      }
+    }
+
+    async function sendToAgent(text) {
+      const message = (text || '').trim();
+      if (!message) {
+        setStatus('Try saying something.');
+        return;
+      }
+      if (awaitingReply) {
+        setStatus('Hold on, Lyra is still replying.');
+        return;
+      }
+      if (noteEl) {
+        noteEl.textContent = '';
+      }
+      setStatus('Lyra is thinking…');
+      awaitingReply = true;
+      try {
+        const resp = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message })
+        });
+        if (resp.status === 402) {
+          setStatus('Sign in to continue chatting.');
+          return;
+        }
+        if (!resp.ok) {
+          throw new Error('request_failed');
+        }
+        const data = await resp.json();
+        const reply = (data && data.reply) || '';
+        setStatus('Lyra is speaking…');
+        await speakText(reply);
+        setStatus('Tap the mic to speak again');
+      } catch (err) {
+        console.error('sendToAgent error', err);
+        setStatus('Something went wrong. Please try again.');
+        if (noteEl) {
+          noteEl.textContent = 'Network error — try again in a moment.';
+        }
+      } finally {
+        awaitingReply = false;
+      }
+    }
+
+    function leaveVoice() {
+      cleanupAudio();
+      window.location.href = '/';
+    }
+
+    backBtn && backBtn.addEventListener('click', leaveVoice);
+
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.continuous = false;
+
+      recognition.onstart = () => {
+        setListening(true);
+        setStatus('Listening…');
+      };
+      recognition.onerror = (event) => {
+        console.error('speech error', event);
+        setListening(false);
+        setStatus('Mic error. Check permissions and try again.');
+      };
+      recognition.onend = () => {
+        setListening(false);
+        if (!awaitingReply) {
+          setStatus('Tap the mic to speak');
+        }
+      };
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const res = event.results[i];
+          if (res.isFinal && res[0]) {
+            transcript += res[0].transcript || '';
+          }
+        }
+        transcript = transcript.trim();
+        if (transcript) {
+          sendToAgent(transcript);
+        } else {
+          setStatus('I did not catch that. Try again.');
+        }
+      };
+      micBtn.addEventListener('click', () => {
+        if (!recognition) return;
+        try {
+          if (!listening) {
+            recognition.start();
+          } else {
+            recognition.stop();
+          }
+        } catch (err) {
+          console.error('recognition start error', err);
+          setStatus('Unable to access the microphone.');
+          if (noteEl) {
+            noteEl.textContent = 'Check that microphone permissions are granted.';
+          }
+        }
+      });
+    } else {
+      micBtn.disabled = true;
+      micBtn.classList.add('is-disabled');
+      if (noteEl) {
+        noteEl.textContent = 'Voice recognition unavailable in this browser. Try Chrome on desktop.';
+      }
+      setStatus('Microphone unavailable');
+    }
+
+    window.addEventListener('beforeunload', () => {
+      cleanupAudio();
+      if (recognition && listening) {
+        try { recognition.stop(); } catch (err) {}
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

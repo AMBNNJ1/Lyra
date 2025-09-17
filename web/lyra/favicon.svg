@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6aa9ff"/>
+      <stop offset="1" stop-color="#7c5cff"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0b0f14"/>
+  <circle cx="32" cy="32" r="22" fill="url(#g)"/>
+  <circle cx="41" cy="26" r="5" fill="#ffffff" opacity=".85"/>
+  <circle cx="26" cy="40" r="3" fill="#ffffff" opacity=".25"/>
+  <circle cx="22" cy="28" r="2" fill="#ffffff" opacity=".18"/>
+  <circle cx="38" cy="45" r="2" fill="#ffffff" opacity=".15"/>
+  <title>Lyra</title>
+  <desc>Simple gradient orb on dark square for Lyra</desc>
+  
+</svg>
+

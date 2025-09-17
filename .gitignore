@@ -1,0 +1,37 @@
+# Virtual environments
+.venv/
+.venv311/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Editor settings
+.vscode/
+
+# Environment & tokens
+.env
+.env.*
+!**/.env.example
+!**/.env.sample
+!**/.env.template
+.vts_token.json
+.letta_agent.json
+
+# Temporary & generated data
+.data/
+.tmp/
+tmpkokoropkg/
+tmp*.txt
+tmp*.wav
+response.wav
+
+# Node dependencies & artifacts
+node_modules/
+mem0-service/node_modules/
+mem0-service/memory.db
+mem0-service/vector_store.db
+
+# System files
+Thumbs.db
+NUL
