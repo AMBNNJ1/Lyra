@@ -5,8 +5,29 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+import re
+from urllib.parse import urlparse, urlunparse
+
 import requests
+
 from jose import jwt
+
+
+def _sanitize_url(raw: str, env_name: str, allow_empty_path: bool = True) -> str:
+    raw = (raw or '').strip()
+    if not raw:
+        raise RuntimeError(f"{env_name} env var is empty")
+    raw = re.sub(r'^(https?://)+', lambda m: m.group(1), raw, count=1)
+    parsed = urlparse(raw if '://' in raw else f'https://{raw}')
+    if not parsed.scheme or not parsed.netloc:
+        raise RuntimeError(f"{env_name} env var must be a valid URL")
+    if parsed.scheme not in ('https', 'http'):
+        raise RuntimeError(f"{env_name} must use http or https scheme")
+    path_part = parsed.path or ('/' if not allow_empty_path else '')
+    if allow_empty_path:
+        path_part = path_part.rstrip('/')
+    rebuilt = urlunparse((parsed.scheme, parsed.netloc, path_part, '', '', ''))
+    return rebuilt.rstrip('/') if allow_empty_path else rebuilt
 
 
 class ClerkAuthError(Exception):
@@ -31,9 +52,13 @@ class ClerkVerifier:
         if not issuer and not jwks_url:
             raise RuntimeError("CLERK_ISSUER or CLERK_JWKS_URL must be set for Clerk auth")
         if issuer:
-            issuer = issuer.rstrip("/")
+            issuer = _sanitize_url(issuer, "CLERK_ISSUER").rstrip("/")
         if not jwks_url:
-            jwks_url = f"{issuer}/.well-known/jwks.json"
+            jwks_url = f"{issuer}/.well-known/jwks.json" if issuer else None
+        if jwks_url:
+            jwks_url = _sanitize_url(jwks_url, "CLERK_JWKS_URL", allow_empty_path=False)
+        else:
+            raise RuntimeError("Unable to determine Clerk JWKS URL. Provide CLERK_ISSUER or CLERK_JWKS_URL.")
         return cls(issuer=issuer, audience=audience, jwks_url=jwks_url)
 
     def _load_jwks(self) -> Dict[str, Any]:

@@ -1,16 +1,18 @@
 ﻿from __future__ import annotations
 
 import os
+import re
 import threading
 from typing import Dict
 
-from flask import Flask, request, jsonify, send_from_directory, Response, g, abort
+from flask import Flask, request, jsonify, send_from_directory, send_file, Response, g, abort
 from pathlib import Path
 import sys
 from dotenv import load_dotenv
 
 # Ensure project root is on sys.path when running this file directly
 ROOT = Path(__file__).resolve().parents[1]
+WEB_DIR = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -40,8 +42,24 @@ def _load_clerk_verifier() -> ClerkVerifier:
 
 load_dotenv()  # ensure QDRANT_URL, QDRANT_API_KEY, OPENAI_BASE_URL, etc.
 
+try:
+    GUEST_MESSAGE_LIMIT = int(os.getenv("GUEST_MESSAGE_LIMIT", "5"))
+except ValueError:
+    GUEST_MESSAGE_LIMIT = 5
+GUEST_MESSAGE_LIMIT = max(0, GUEST_MESSAGE_LIMIT)
+GUEST_ALLOWED_PATHS: Dict[str, bool] = {
+    "/api/chat": True,
+    "/api/chat/stream": True,
+    "/api/tts": False,
+}
+GUEST_USAGE: Dict[str, int] = {}
+GUEST_USAGE_LOCK = threading.Lock()
+
 CLERK = _load_clerk_verifier()
 CLERK_PUBLISHABLE_KEY = os.getenv("CLERK_PUBLISHABLE_KEY")
+if not CLERK_PUBLISHABLE_KEY:
+    raise RuntimeError("CLERK_PUBLISHABLE_KEY env var is not set. Populate it in your environment or .env file.")
+CLERK_JWT_TEMPLATE = os.getenv("CLERK_JWT_TEMPLATE")
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 SESSIONS: Dict[str, WebAgentSession] = {}
@@ -123,9 +141,53 @@ def _extract_bearer_token() -> str | None:
     return token
 
 
+def _guest_id_from_headers() -> str | None:
+    raw = request.headers.get("X-Guest-Id", "").strip()
+    if not raw:
+        return None
+    slug = re.sub(r"[^a-zA-Z0-9-]+", "", raw).strip('-')
+    if not slug:
+        return None
+    return slug[:64]
+
+
+def _try_guest_user() -> str | None:
+    if GUEST_MESSAGE_LIMIT <= 0:
+        return None
+    guest_id = _guest_id_from_headers()
+    if not guest_id:
+        return None
+    allow_entry = GUEST_ALLOWED_PATHS.get(request.path)
+    if allow_entry is None:
+        return None
+    increment = bool(allow_entry)
+    with GUEST_USAGE_LOCK:
+        used = GUEST_USAGE.get(guest_id, 0)
+        if increment:
+            if used >= GUEST_MESSAGE_LIMIT:
+                return None
+            used += 1
+            GUEST_USAGE[guest_id] = used
+        else:
+            GUEST_USAGE.setdefault(guest_id, used)
+    used = GUEST_USAGE.get(guest_id, 0)
+    remaining = max(GUEST_MESSAGE_LIMIT - used, 0)
+    user_id = f"guest-{guest_id}"
+    g.clerk_claims = {"sub": user_id, "guest": True}
+    g.clerk_user_id = user_id
+    g.is_guest = True
+    g.guest_messages_used = used
+    g.guest_messages_remaining = remaining
+    g.guest_incremented = increment
+    return user_id
+
+
 def require_clerk_user() -> str:
     token = _extract_bearer_token()
     if not token:
+        guest_user = _try_guest_user()
+        if guest_user:
+            return guest_user
         abort(401, description="Missing Clerk session token")
     try:
         claims = CLERK.verify(token)
@@ -147,7 +209,10 @@ def _before_request() -> None:
 
 @app.route("/api/auth/config", methods=["GET"])
 def auth_config():
-    return jsonify({"publishableKey": CLERK_PUBLISHABLE_KEY})
+    return jsonify({
+        "publishableKey": CLERK_PUBLISHABLE_KEY,
+        "jwtTemplate": CLERK_JWT_TEMPLATE or None,
+    })
 
 @app.route("/api/chat", methods=["POST"])
 def api_chat():
@@ -157,7 +222,15 @@ def api_chat():
     data = request.get_json(force=True, silent=True) or {}
     text = (data.get("message") or "").strip()
     res = session.chat(text)
-    return jsonify(res)
+    response = jsonify(res)
+    if getattr(g, "is_guest", False):
+        remaining = getattr(g, "guest_messages_remaining", 0)
+        try:
+            remaining_int = int(remaining)
+        except (TypeError, ValueError):
+            remaining_int = 0
+        response.headers["X-Guest-Remaining"] = str(max(remaining_int, 0))
+    return response
 
 
 @app.route("/api/chat/stream", methods=["POST"])
@@ -190,6 +263,13 @@ def api_chat_stream():
         "X-Accel-Buffering": "no",
         "Connection": "keep-alive",
     }
+    if getattr(g, "is_guest", False):
+        remaining = getattr(g, "guest_messages_remaining", 0)
+        try:
+            remaining_int = int(remaining)
+        except (TypeError, ValueError):
+            remaining_int = 0
+        headers["X-Guest-Remaining"] = str(max(remaining_int, 0))
     return Response(gen(), mimetype="text/event-stream", headers=headers)
 
 
@@ -273,26 +353,40 @@ def api_tts():
 
 @app.route("/")
 def index():
-    web_dir = Path(__file__).resolve().parent
+    web_dir = WEB_DIR
     return send_from_directory(str(web_dir), "index.html")
 
 
 @app.route("/voice")
 def voice_mode():
-    web_dir = Path(__file__).resolve().parent
+    web_dir = WEB_DIR
     return send_from_directory(str(web_dir), "voice.html")
 
 
 @app.route("/web/<path:path>")
 def web_assets(path: str):
-    web_dir = Path(__file__).resolve().parent
+    web_dir = WEB_DIR
     return send_from_directory(str(web_dir), path)
 
 
 @app.route("/landing")
 def landing():
-    web_dir = Path(__file__).resolve().parent
+    web_dir = WEB_DIR
     return send_from_directory(str(web_dir), "landing.html")
+
+
+@app.route("/<path:filename>")
+def web_static(filename: str):
+    if "." not in filename:
+        abort(404)
+    full = (WEB_DIR / filename).resolve()
+    try:
+        full.relative_to(WEB_DIR)
+    except ValueError:
+        abort(404)
+    if not full.is_file():
+        abort(404)
+    return send_file(str(full))
 
 
 if __name__ == "__main__":

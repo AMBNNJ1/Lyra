@@ -17,6 +17,10 @@ _EMPTY_CONTEXT: Dict[str, Any] = {
 class MemoryClient:
     def __init__(self, provider: str | None = None) -> None:
         self.base_url = os.getenv("MEM0_BASE_URL", "http://127.0.0.1:4040").rstrip("/")
+        raw_provider = provider or os.getenv("MEMORY_PROVIDER") or "mem0"
+        self.provider = str(raw_provider).strip().lower() or "mem0"
+        if self.provider == "qdrant":
+            self.provider = "mem0+qdrant"
         self.session = requests.Session()
         self._debug = str(os.getenv("MEMORY_DEBUG", "0")).strip().lower() not in {"", "0", "false", "no"}
         self.user_id = self._sanitize_user(os.getenv("MEMORY_USER_ID", "default"))

@@ -1,113 +1,40 @@
-Lyra Emotional Framework — Simplified OCC Rules
-==============================================
+# Lyra Emotion Engine
 
-Overview
---------
-- Approach: OCC-style appraisal (Ortony, Clore, Collins), simplified for real-time agents.
-- Idea: Emotions are computed from appraisals of events relative to goals, norms, and accountability.
-- Why: Adds personality and explainability (e.g., “I’m upset because you tricked me”).
+Lyra adds a touch of personality by tracking a lightweight emotional state. The same engine drives the affect line shown to the LLM and can be used to trigger avatar animations or voice inflection.
 
-Pros
-----
-- Adds context-dependent richness and coherent reactions.
-- Lightweight, offline-safe, no external models required.
-- Explainable: returns a short “Because …” reason to include in prompts or logs.
+## How It Works
 
-Cons
-----
-- Needs rule coverage; edge cases require iteration.
-- Consistency depends on tuning magnitudes and decay.
+- **Model** ? `src/neuro_mvp/emotion.py` implements a simplified OCC appraisal system.
+- **Inputs** ? user text (via keyword heuristics) and optional structured events raised by the backend.
+- **Outputs** ? `EmotionState` with intensity for emotions such as joy, frustration, gratitude, anger, and surprise, plus a short ?Because ?? explanation.
+- **Decay** ? each turn decays previous intensities so fresh events dominate.
 
-Concepts
---------
-- Goals: What the agent cares about (default: `help_user: 1.0`).
-- Appraisal event: `valence`, `desirability`, `praiseworthiness`, `accountability` (self/other/none), `certainty`, `expectedness`, `magnitude`.
-- Emotions tracked (subset): joy, distress, hope, fear, relief, disappointment, gratitude, anger, pride, shame, frustration, admiration, reproach, surprise.
-- Dynamics: Per-turn decay; multiple rules/events can accumulate.
+## Integration Points
 
-Event Schema
-------------
-```
-AppraisalEvent(
-  valence:        -1..1,     # general positive/negative tone
-  desirability:   -1..1,     # effect relative to goals
-  praiseworthiness:-1..1,    # norm-based judgment
-  accountability:  'self'|'other'|'none',
-  certainty:      0..1,      # 1 means confirmed; <1 means prospective
-  expectedness:   0..1,      # 1 expected, 0 surprising
-  magnitude:      0..1,      # salience/impact
-  note:           str        # human-readable reason
-)
-```
+| Stage | Usage |
+|-------|-------|
+| Prompting | `ee.to_prompt()` returns a string like `Affect: gratitude (0.42). Because: user thanked me for the help.` appended to the system message. |
+| Avatar | Map the primary emotion to CSS classes or video swaps in `web/index.html` (e.g., show a smiling still when joy > 0.3). |
+| Memory | Significant affect changes can be logged into Mem0 to explain why decisions were made. |
+| Voice | Adjust Kokoro TTS parameters (rate/pitch) based on intensity if you want more expressive playback. |
 
-Core Rules (Simplified)
------------------------
-- Well-being: desirability>0 → joy; desirability<0 → distress.
-- Prospect: (certainty<0.9) & desirability>0 → hope; (certainty<0.9) & desirability<0 → fear.
-- Outcome confirmation: relief vs disappointment depending on outcome vs expectation.
-- Social worth: other+praiseworthy → gratitude/admiration; self+praiseworthy → pride; self/other+blameworthy → shame/reproach/anger.
-- Goal obstruction (desirability<0 & certain) → frustration.
-- Unexpectedness → surprise.
+## Quick Start
 
-Text Heuristics
----------------
-- Gratitude/help: “thanks”, “appreciate”, “helped”, “saved me”.
-- Obstruction: “failed”, “can’t”, “stuck”, “error”, “broken”, “issue”.
-- Norm violation: “tricked”, “lied”, “cheated”, “deceived”, “prank”.
-- Praise (self): “good job”, “well done”, “amazing”, “awesome”.
-- Prospect: “hope”, “maybe”, “could”, “might”, “plan”, “deadline”, “risk”.
-- Novelty: “wow”, “unexpected”, “surprised”.
-
-Integration Points
-------------------
-- Prompting: prepend a one-line affect hint to the system message (e.g., `Affect: anger (0.42). Because: …`).
-- VTS/Avatar: map primary emotion to expression hotkeys; use arousal/intensity for strength.
-- TTS: modulate prosody (rate/pitch) based on intensity (e.g., frustration → faster rate, higher energy).
-- Memory: optionally record major affect shifts as working context facts.
-
-API (Python)
-------------
-- Module: `src/neuro_mvp/emotion.py`
-- Class: `EmotionEngine`
-- Methods:
-  - `add_goal(name, weight)` – register goals.
-  - `appraise(event)` – apply a structured event.
-  - `appraise_from_text(text)` – heuristic text-based rules.
-  - `to_prompt(explain=True)` – produce a concise affect line for prompting/logging.
-
-Usage Example
--------------
 ```python
-from src.neuro_mvp.emotion import EmotionEngine
+from neuro_mvp.emotion import EmotionEngine
 
 ee = EmotionEngine()
-ee.add_goal("help_user", 1.0)
 
-# From user input
 ee.appraise_from_text("thanks, that really helped!")
-print(ee.to_prompt())  # -> Affect: gratitude (0.xx). Because: User helped or expressed thanks …
-
-# Structured event
-from src.neuro_mvp.emotion import AppraisalEvent
-ee.appraise(AppraisalEvent(
-    valence=-0.5, desirability=-0.7, praiseworthiness=-0.6,
-    accountability="other", certainty=0.95, expectedness=0.5, magnitude=0.8,
-    note="Build was broken due to someone’s mistake",
-))
-print(ee.to_prompt())
+print(ee.to_prompt())  # Affect: gratitude (0.xx). Because: User helped or expressed thanks ...
 ```
 
-Minimal Prompt Hook
--------------------
-In your loop, include the affect line in the system message:
-```
-affect = ee.to_prompt()
-system = base_system + "\n" + affect + other_context
-```
+You can also craft explicit `AppraisalEvent` objects when a tool call or search result suggests a strong outcome (success, failure, norm violation, etc.).
 
-Next Steps
-----------
-- Expand keyword sets and add domain rules (e.g., project management, code build states).
-- Add arousal/valence → VTS expression map with intensity scaling.
-- Optionally persist `ee.state.levels` in memory to carry affect across sessions.
+## Customisation
 
+- Extend keyword sets in `_build_keyword_maps` for your domain-specific vocabulary.
+- Tune decay rate in `EmotionState.decay` to make the avatar more or less reactive.
+- Add new emotion labels by updating `EMOTIONS` and the response logic (be sure to surface them in the UI).
+
+Emotion is optional but enriches repeat conversations?Lyra can remember what happened, cite why she feels a certain way, and react visually on the chat page.

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Lyra Voice Mode</title>
-  <link rel="stylesheet" href="/web/voice.css" />
+  <link rel="stylesheet" href="/voice.css" />
 </head>
 <body>
   <div class="call-shell">
@@ -18,7 +18,7 @@
       <section class="call-stage">
         <div class="avatar-wrapper">
           <div class="avatar-halo" id="avatarRing">
-            <img src="/web/assets/nova_avatar.jpg" alt="Lyra avatar" />
+            <img src="/assets/nova_avatar.jpg" alt="Lyra avatar" />
           </div>
           <div class="call-name">Lyra</div>
           <p class="call-status" id="voiceStatus">Tap the mic to speak</p>
@@ -51,6 +51,68 @@
     let awaitingReply = false;
     let currentAudio = null;
     let currentUrl = null;
+
+    const GUEST_LIMIT = 5;
+    let guestId = null;
+    let guestMessageCount = 0;
+    (function initGuestQuota(){
+      try {
+        const storedId = localStorage.getItem('lyraGuestId');
+        if (storedId) {
+          guestId = storedId;
+        } else {
+          guestId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+          try { localStorage.setItem('lyraGuestId', guestId); } catch {}
+        }
+        const cachedCount = Number(localStorage.getItem('lyraGuestMessageCount') || '0');
+        if (Number.isFinite(cachedCount) && cachedCount > 0) {
+          guestMessageCount = Math.min(GUEST_LIMIT, cachedCount);
+        }
+      } catch {
+        guestId = guestId || ((typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+        guestMessageCount = 0;
+      }
+    })();
+
+    function canUseGuestQuota(){
+      return guestMessageCount < GUEST_LIMIT;
+    }
+
+    function ensureGuestIdentifier(){
+      if (!guestId){
+        guestId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+        try { localStorage.setItem('lyraGuestId', guestId); } catch {}
+      }
+      return guestId;
+    }
+
+    function applyGuestHeaders(headers){
+      const id = ensureGuestIdentifier();
+      if (id) headers['X-Guest-Id'] = id;
+    }
+
+    function consumeGuestQuota(nextCount){
+      if (typeof nextCount === 'number' && Number.isFinite(nextCount)) {
+        guestMessageCount = Math.max(guestMessageCount, nextCount);
+      } else {
+        guestMessageCount += 1;
+      }
+      if (guestMessageCount > GUEST_LIMIT) guestMessageCount = GUEST_LIMIT;
+      try { localStorage.setItem('lyraGuestMessageCount', String(guestMessageCount)); } catch {}
+      if (guestMessageCount >= GUEST_LIMIT){
+        setStatus('Please sign in to keep talking with Lyra.');
+        if (noteEl) noteEl.textContent = 'Open the chat to sign in and unlock unlimited voice conversations.';
+        micBtn.disabled = true;
+        micBtn.classList.add('is-disabled');
+      }
+    }
+
+    if (!canUseGuestQuota()){
+      setStatus('Please sign in to keep talking with Lyra.');
+      if (noteEl) noteEl.textContent = 'Open the chat to sign in and unlock unlimited voice conversations.';
+      micBtn.disabled = true;
+      micBtn.classList.add('is-disabled');
+    }
 
     function setStatus(msg) {
       statusEl.textContent = msg || '';
@@ -87,9 +149,11 @@
       const phrase = (text || '').trim();
       if (!phrase) return;
       try {
+        const headers = { 'Content-Type': 'application/json' };
+        applyGuestHeaders(headers);
         const resp = await fetch('/api/tts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ text: phrase })
         });
         if (!resp.ok) {
@@ -124,17 +188,34 @@
         setStatus('Hold on, Lyra is still replying.');
         return;
       }
+      const guestAllowed = canUseGuestQuota();
+      if (!guestAllowed) {
+        setStatus('Please sign in to keep talking with Lyra.');
+        if (noteEl) noteEl.textContent = 'Open the chat to sign in and unlock unlimited voice conversations.';
+        return;
+      }
       if (noteEl) {
         noteEl.textContent = '';
       }
-      setStatus('Lyra is thinking…');
+      setStatus('Lyra is thinking...');
       awaitingReply = true;
+      let shouldConsumeGuest = false;
+      let guestOverrideCount = null;
       try {
+        const headers = { 'Content-Type': 'application/json' };
+        applyGuestHeaders(headers);
         const resp = await fetch('/api/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ message })
         });
+        if (resp.status === 401) {
+          setStatus('Please sign in to keep talking with Lyra.');
+          if (noteEl) noteEl.textContent = 'Open the chat to sign in and unlock unlimited voice conversations.';
+          micBtn.disabled = true;
+          micBtn.classList.add('is-disabled');
+          return;
+        }
         if (resp.status === 402) {
           setStatus('Sign in to continue chatting.');
           return;
@@ -142,19 +223,28 @@
         if (!resp.ok) {
           throw new Error('request_failed');
         }
+        shouldConsumeGuest = guestAllowed;
+        const remainingHeader = resp.headers.get('X-Guest-Remaining');
+        if (remainingHeader !== null) {
+          const remainingNum = Number(remainingHeader);
+          if (!Number.isNaN(remainingNum)) {
+            guestOverrideCount = Math.min(GUEST_LIMIT, Math.max(0, Math.round(GUEST_LIMIT - remainingNum)));
+          }
+        }
         const data = await resp.json();
         const reply = (data && data.reply) || '';
-        setStatus('Lyra is speaking…');
+        setStatus('Lyra is speaking...');
         await speakText(reply);
         setStatus('Tap the mic to speak again');
       } catch (err) {
         console.error('sendToAgent error', err);
         setStatus('Something went wrong. Please try again.');
         if (noteEl) {
-          noteEl.textContent = 'Network error — try again in a moment.';
+          noteEl.textContent = 'Network error - try again in a moment.';
         }
       } finally {
         awaitingReply = false;
+        if (shouldConsumeGuest) consumeGuestQuota(guestOverrideCount);
       }
     }
 

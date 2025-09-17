@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -19,7 +19,7 @@ function makeMemory() {
       config: {
         url: qdrantUrl,
         apiKey: process.env.QDRANT_API_KEY || undefined,
-        collection: process.env.QDRANT_COLLECTION || 'memory_items',
+        collectionName: process.env.QDRANT_COLLECTION || 'memory_items',
         distance: process.env.QDRANT_DISTANCE || 'Cosine',
         dimension: process.env.QDRANT_DIM ? Number(process.env.QDRANT_DIM) : undefined
       }
@@ -63,6 +63,10 @@ function makeMemory() {
         model: process.env.MEM0_OPENAI_MODEL || 'gpt-4o-mini'
       }
     };
+  }
+  if (options.vectorStore && options.vectorStore.provider === 'qdrant') {
+    const cfg = options.vectorStore.config || {};
+    console.log(`[mem0-service] Qdrant store: ${cfg.url || 'http://localhost:6333'} collection=${cfg.collectionName || 'memory_items'}`);
   }
   return new Memory(options);
 }

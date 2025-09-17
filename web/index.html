@@ -4,9 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Lyra - Chat</title>
-  <link rel="icon" href="/web/lyra/favicon.svg" />
-  <link rel="stylesheet" href="/web/styles.css" />
-  <script async crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"></script>
+  <link rel="icon" href="/lyra/favicon.svg" />
+  <link rel="stylesheet" href="/styles.css" />
   <script>
     let historyPoll = null;
     let lastSeenCount = 0;
@@ -15,18 +14,121 @@
     let clerkInstance = null;
     let authToken = null;
     let hasActivatedAuth = false;
+    let clerkScriptPromise = null;
+    let clerkSignInMounted = false;
+    let clerkTokenTemplate = null;
+    const GUEST_LIMIT = 5;
+    let guestId = null;
+    let guestMessageCount = 0;
+    (function initGuestQuota(){
+      try {
+        const storedId = localStorage.getItem('lyraGuestId');
+        if (storedId) {
+          guestId = storedId;
+        } else {
+          const generated = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+          guestId = generated;
+          try { localStorage.setItem('lyraGuestId', guestId); } catch {}
+        }
+        const cachedCount = Number(localStorage.getItem('lyraGuestMessageCount') || '0');
+        if (Number.isFinite(cachedCount) && cachedCount > 0) {
+          guestMessageCount = Math.min(GUEST_LIMIT, cachedCount);
+        } else {
+          guestMessageCount = 0;
+        }
+      } catch {
+        guestId = guestId || ((typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+        guestMessageCount = 0;
+      }
+    })();
+
+    function canUseGuestQuota(){
+      return !authToken && guestMessageCount < GUEST_LIMIT;
+    }
+
+    function ensureGuestIdentifier(){
+      if (!guestId){
+        guestId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+        try { localStorage.setItem('lyraGuestId', guestId); } catch {}
+      }
+      return guestId;
+    }
+
+    function applyGuestHeaders(headers){
+      const id = ensureGuestIdentifier();
+      if (id) headers['X-Guest-Id'] = id;
+    }
+
+    function consumeGuestQuota(nextCount){
+      if (typeof nextCount === 'number' && Number.isFinite(nextCount)) {
+        guestMessageCount = Math.max(guestMessageCount, nextCount);
+      } else {
+        guestMessageCount += 1;
+      }
+      if (guestMessageCount > GUEST_LIMIT) guestMessageCount = GUEST_LIMIT;
+      try { localStorage.setItem('lyraGuestMessageCount', String(guestMessageCount)); } catch {}
+      if (guestMessageCount >= GUEST_LIMIT && !authToken){
+        const root = document.getElementById('clerkSignIn');
+        if (root && (!clerkInstance || !clerkInstance.isSignedIn)){
+          if (!clerkSignInMounted) {
+            root.innerHTML = '<p class="error">Please sign in to keep chatting with Lyra.</p>';
+          }
+        }
+        setTimeout(() => { if (!authToken) openClerkModal(); }, 50);
+      }
+    }
+
+    function loadClerkScript(pk){
+      if (window.Clerk) return Promise.resolve();
+      if (clerkScriptPromise) return clerkScriptPromise;
+      clerkScriptPromise = new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[data-clerk-js]');
+        if (existing){
+          const finalize = () => resolve();
+          if (existing.getAttribute('data-clerk-publishable-key') === pk && existing.hasAttribute('data-loaded')){
+            finalize();
+            return;
+          }
+          existing.addEventListener('load', finalize, { once: true });
+          existing.addEventListener('error', () => reject(new Error('Failed to load Clerk script')), { once: true });
+          return;
+        }
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js';
+        s.async = true;
+        s.crossOrigin = 'anonymous';
+        s.setAttribute('data-clerk-js', 'true');
+        s.setAttribute('data-clerk-publishable-key', pk);
+        s.onload = () => {
+          s.setAttribute('data-loaded', 'true');
+          resolve();
+        };
+        s.onerror = () => reject(new Error('Failed to load Clerk script'));
+        document.head.appendChild(s);
+      });
+      return clerkScriptPromise;
+    }
+
     async function post(path, body){
       const headers = {'Content-Type':'application/json'};
       if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      else applyGuestHeaders(headers);
       const r = await fetch(path, { method:'POST', headers, body: JSON.stringify(body||{}) });
-      if(r.status === 401){ openClerkModal(); throw new Error('unauthorized'); }
+      if(r.status === 401){
+        if (!canUseGuestQuota()) openClerkModal();
+        throw new Error('unauthorized');
+      }
       if(!r.ok) throw new Error('request failed');
       return await r.json();
     }
     async function get(path){
       const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+      if (!authToken) applyGuestHeaders(headers);
       const r = await fetch(path, { headers });
-      if(r.status === 401){ openClerkModal(); throw new Error('unauthorized'); }
+      if(r.status === 401){
+        if (!canUseGuestQuota()) openClerkModal();
+        throw new Error('unauthorized');
+      }
       if(!r.ok) throw new Error('request failed');
       return await r.json();
     }
@@ -37,7 +139,7 @@
       av.className = 'avatar' + (role==='assistant' ? ' ai' : ' user');
       if (role === 'assistant') {
         const img = document.createElement('img');
-        img.src = '/web/assets/nova_avatar.jpg';
+        img.src = '/assets/nova_avatar.jpg';
         img.alt = 'Lyra avatar';
         av.appendChild(img);
       } else {
@@ -69,13 +171,39 @@
       if (!modal) return;
       const root = document.getElementById('clerkSignIn');
       if (!clerkInstance){
-        if (root) root.innerHTML = '<p class="error">Authentication service is still loading...</p>';
+        if (root){
+          clerkSignInMounted = false;
+          root.innerHTML = '<p class="error">Authentication service is still loading...</p>';
+        }
         modal.hidden = false;
         return;
       }
       if (root){
-        root.innerHTML = '';
-        clerkInstance.mountSignIn(root, { appearance: { elements: { card: 'card' } } });
+        if (!clerkSignInMounted){
+          root.innerHTML = '';
+          const redirectTarget = window.location.href.split('#')[0];
+          const mountOptions = {
+            appearance: { elements: { card: 'card' } },
+            redirectUrl: redirectTarget,
+            afterSignInUrl: redirectTarget,
+            afterSignUpUrl: redirectTarget,
+          };
+          try{
+            const mountResult = clerkInstance.mountSignIn(root, mountOptions);
+            clerkSignInMounted = true;
+            if (mountResult && typeof mountResult.then === 'function'){
+              mountResult.catch((err) => {
+                console.error('[clerk] mountSignIn failed', err);
+                clerkSignInMounted = false;
+                root.innerHTML = '<p class="error">Unable to load sign in. Please try again.</p>';
+              });
+            }
+          }catch(err){
+            console.error('[clerk] mountSignIn failed', err);
+            clerkSignInMounted = false;
+            root.innerHTML = '<p class="error">Unable to load sign in. Please try again.</p>';
+          }
+        }
       }
       modal.hidden = false;
     }
@@ -86,23 +214,34 @@
         if (!res.ok) throw new Error('config request failed');
         const data = await res.json();
         const pk = data.publishableKey;
+        clerkTokenTemplate = (data.jwtTemplate && data.jwtTemplate.trim()) ? data.jwtTemplate.trim() : null;
         if (!pk){
           console.warn('[clerk] publishable key missing');
           const root = document.getElementById('clerkSignIn');
           if (root) root.innerHTML = '<p class="error">Clerk publishable key is not configured.</p>';
           return;
         }
+        await loadClerkScript(pk);
         await new Promise((resolve) => {
           if (window.Clerk) return resolve();
           const check = () => { if (window.Clerk) resolve(); else setTimeout(check, 20); };
           check();
         });
-        clerkInstance = new window.Clerk(pk);
-        await clerkInstance.load();
+        const clerk = window.Clerk;
+        if (!clerk) {
+          throw new Error('Clerk failed to initialize');
+        }
+        const alreadyLoaded = clerk.__lyraLoaded || (typeof clerk.isLoaded === 'function' ? clerk.isLoaded() : false);
+        if (!alreadyLoaded) {
+          await clerk.load({ publishableKey: pk });
+          clerk.__lyraLoaded = true;
+        }
+        clerkInstance = clerk;
         handleClerkState();
         clerkInstance.addListener(handleClerkState);
       } catch (err) {
         console.error('[clerk] init failed', err);
+        clerkSignInMounted = false;
         const root = document.getElementById('clerkSignIn');
         if (root) root.innerHTML = `<p class="error">Authentication service unavailable.</p>`;
       }
@@ -114,10 +253,24 @@
         return;
       }
       try {
-        authToken = await clerkInstance.session.getToken({ template: 'default' });
+        if (clerkTokenTemplate) {
+          authToken = await clerkInstance.session.getToken({ template: clerkTokenTemplate });
+        } else {
+          authToken = await clerkInstance.session.getToken();
+        }
       } catch (err) {
         console.warn('[clerk] token fetch failed', err);
-        authToken = null;
+        if (clerkTokenTemplate) {
+          try {
+            authToken = await clerkInstance.session.getToken();
+            console.warn('[clerk] falling back to session token without template');
+          } catch (fallbackErr) {
+            console.warn('[clerk] fallback token fetch failed', fallbackErr);
+            authToken = null;
+          }
+        } else {
+          authToken = null;
+        }
       }
     }
 
@@ -170,7 +323,7 @@
         if (vid.getAttribute('data-state') === 'talking') return;
         vid.setAttribute('data-state', 'talking');
         vid.loop = true; // keep lips moving if response is long
-        vid.src = '/web/assets/nova_talking.mp4';
+        vid.src = '/assets/nova_talking.mp4';
         const play = () => { vid.play().catch(()=>{}); };
         vid.addEventListener('canplay', play, { once: true });
         if (fallback) fallback.hidden = true;
@@ -187,7 +340,7 @@
         vid.removeAttribute('data-state');
         // revert to idle loop
         vid.loop = true;
-        vid.src = '/web/assets/nova_hero.mp4';
+        vid.src = '/assets/nova_hero.mp4';
         const playIdle = () => { vid.play().catch(()=>{}); };
         vid.addEventListener('canplay', playIdle, { once: true });
         if (fallback) fallback.hidden = true;
@@ -229,7 +382,8 @@
       }catch{}
     }
     async function send(){
-      if (!authToken) { openClerkModal(); return; }
+      const guestAllowed = canUseGuestQuota();
+      if (!authToken && !guestAllowed) { openClerkModal(); return; }
       const ta = document.getElementById('ta');
       const sendBtn = document.getElementById('send');
       const txt = ta.value.trim();
@@ -246,17 +400,37 @@
       chat.appendChild(aiMsg);
       scrollToBottom();
       sendBtn.disabled = true;
+      let speech = '';
+      const usedGuest = !authToken && guestAllowed;
+      let guestShouldConsume = false;
+      let guestOverrideCount = null;
       // Streaming via SSE over fetch body
       try{
         const headers = {'Content-Type':'application/json'};
         if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+        else if (usedGuest) applyGuestHeaders(headers);
         const res = await fetch('/api/chat/stream', { method:'POST', headers, body: JSON.stringify({message: txt}) });
-        if(res.status===401){ openClerkModal(); throw new Error('Sign in to continue'); }
-        if(!res.ok || !res.body){ throw new Error('request failed'); }
+        if(res.status===401){
+          openClerkModal();
+          throw new Error('Sign in to continue');
+        }
+        if (usedGuest) {
+          guestShouldConsume = true;
+          const remainingHeader = res.headers.get('X-Guest-Remaining');
+          if (remainingHeader !== null) {
+            const remainingNum = Number(remainingHeader);
+            if (!Number.isNaN(remainingNum)) {
+              const usedCount = Math.min(GUEST_LIMIT, Math.max(0, Math.round(GUEST_LIMIT - remainingNum)));
+              guestOverrideCount = usedCount;
+            }
+          }
+        }
+        if(!res.ok){ throw new Error('request failed'); }
+        if(!res.body){ throw new Error('request failed'); }
         const reader = res.body.getReader();
         const dec = new TextDecoder();
         let buf = '';
-        let speech = '';
+        speech = '';
         startTalking();
         while(true){
           const {value, done} = await reader.read();
@@ -291,9 +465,11 @@
           const finalText = speech.trim();
           aiContent.textContent = finalText ? finalText : aiContent.textContent || '...';
         }
+        if (usedGuest && guestShouldConsume) consumeGuestQuota(guestOverrideCount);
       }
       sendBtn.disabled = false; scrollToBottom();
     }
+
     async function toggleContinuous(cb){
       if (!authToken) { cb.checked = false; openClerkModal(); return; }
       const on = cb.checked;
@@ -440,8 +616,8 @@
       <aside class="avatar-pane">
         <div class="unity-wrap">
           <div id="avatarFrame" class="avatar-frame">
-            <video id="avatarVideo" class="avatar-video" src="/web/assets/nova_hero.mp4" autoplay muted loop playsinline preload="auto" aria-label="Avatar video"></video>
-            <img id="avatarFallback" class="avatar-photo" src="/web/assets/nova_avatar.jpg" alt="Avatar" hidden />
+            <video id="avatarVideo" class="avatar-video" src="/assets/nova_hero.mp4" autoplay muted loop playsinline preload="auto" aria-label="Avatar video"></video>
+            <img id="avatarFallback" class="avatar-photo" src="/assets/nova_avatar.jpg" alt="Avatar" hidden />
           </div>
           <div id="emotionCard" class="emotion-card" aria-live="polite">
             <div class="em-head">

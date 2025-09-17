@@ -1,0 +1,13 @@
+﻿{
+  "version": 2,
+  "framework": null,
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "edge"
+    }
+  },
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/web/$1" }
+  ]
+}
