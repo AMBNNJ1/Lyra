@@ -3,7 +3,7 @@ import re
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
-import requests
+from mem0 import MemoryClient as Mem0Client
 
 _EMPTY_CONTEXT: Dict[str, Any] = {
     "persona": [],
@@ -15,16 +15,15 @@ _EMPTY_CONTEXT: Dict[str, Any] = {
 
 
 class MemoryClient:
-    def __init__(self, provider: str | None = None) -> None:
-        self.base_url = os.getenv("MEM0_BASE_URL", "http://127.0.0.1:4040").rstrip("/")
-        raw_provider = provider or os.getenv("MEMORY_PROVIDER") or "mem0"
-        self.provider = str(raw_provider).strip().lower() or "mem0"
-        if self.provider == "qdrant":
-            self.provider = "mem0+qdrant"
-        self.session = requests.Session()
+    def __init__(self, provider: str | None = None, user_id: str | None = None) -> None:
+        api_key = os.getenv("MEM0_API_KEY")
+        if not api_key:
+            raise ValueError("MEM0_API_KEY must be set for hosted Mem0")
+        self.client = Mem0Client(api_key=api_key)
+        self.provider = "mem0"
         self._debug = str(os.getenv("MEMORY_DEBUG", "0")).strip().lower() not in {"", "0", "false", "no"}
-        self.user_id = self._sanitize_user(os.getenv("MEMORY_USER_ID", "default"))
-        self.user_label = os.getenv("MEMORY_USER_LABEL", "User is default.")
+        self.user_id = self._sanitize_user(user_id or os.getenv("MEMORY_USER_ID", "default"))
+        self.user_label = os.getenv("MEMORY_USER_LABEL", f"User is {self.user_id}.")
         self.persona_text: Optional[str] = os.getenv("MEMORY_PERSONA")
 
     def _dbg(self, msg: str) -> None:
@@ -35,14 +34,6 @@ class MemoryClient:
         slug = re.sub(r"[^a-zA-Z0-9]+", "-", text or "").strip("-").lower()
         return slug or "default"
 
-    def _post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-        url = f"{self.base_url}{path}"
-        resp = self.session.post(url, json=payload, timeout=10)
-        resp.raise_for_status()
-        if resp.content:
-            return resp.json()
-        return {}
-
     def _format_memory(self, item: Dict[str, Any]) -> Dict[str, Any]:
         content = str(item.get("content") or item.get("text") or item.get("value") or "")
         metadata = item.get("metadata") or {}
@@ -50,7 +41,7 @@ class MemoryClient:
         if not label:
             label = self._infer_label(content)
         mem_id = item.get("id") or item.get("_id")
-        score = item.get("score") or metadata.get("score")
+        score = item.get("score") or metadata.get("score") or 1.0
         return {"id": mem_id, "label": label, "value": content, "score": score, "raw": item}
 
     def _infer_label(self, content: str) -> str:
@@ -74,11 +65,8 @@ class MemoryClient:
             return
         self.persona_text = persona
         try:
-            self._post("/add", {
-                "userId": self.user_id,
-                "messages": [{"role": "system", "content": f"[persona] {persona}"}]
-            })
-        except Exception as exc:  # noqa: BLE001
+            self.client.add([{"role": "system", "content": persona}], user_id=self.user_id, metadata={"label": "persona"})
+        except Exception as exc:
             self._dbg(f"ensure_persona failed: {exc}")
 
     def ensure_user(self, user_label: str) -> Optional[str]:
@@ -86,11 +74,8 @@ class MemoryClient:
         self.user_label = user_label
         self.user_id = self._sanitize_user(user_label)
         try:
-            self._post("/add", {
-                "userId": self.user_id,
-                "messages": [{"role": "system", "content": f"[user] {user_label}"}]
-            })
-        except Exception as exc:  # noqa: BLE001
+            self.client.add([{"role": "system", "content": user_label}], user_id=self.user_id, metadata={"label": "user"})
+        except Exception as exc:
             self._dbg(f"ensure_user failed: {exc}")
         else:
             self._ensure_base_user()
@@ -98,9 +83,10 @@ class MemoryClient:
 
     def search(self, query: str) -> List[Dict[str, Any]]:
         try:
-            data = self._post("/search", {"userId": self.user_id, "query": query or "", "limit": 24})
-            return [self._format_memory(item) for item in data.get("results", [])]
-        except Exception as exc:  # noqa: BLE001
+            filters = {"OR": [{"user_id": self.user_id}]}
+            data = self.client.search(query or "", filters=filters, user_id=self.user_id, limit=24, version="v2")
+            return [self._format_memory(item) for item in data]
+        except Exception as exc:
             self._dbg(f"search failed: {exc}")
             return []
 
@@ -109,7 +95,7 @@ class MemoryClient:
         if labels:
             lowered = {lbl.lower() for lbl in labels}
             items = [it for it in items if it.get("label", "").lower() in lowered]
-        return items[: limit]
+        return items[:limit]
 
     def write(self, label: str, value: str) -> None:
         label = (label or "memory").strip().lower()
@@ -117,11 +103,8 @@ class MemoryClient:
         if not value:
             return
         try:
-            self._post("/add", {
-                "userId": self.user_id,
-                "messages": [{"role": "assistant", "content": f"[{label}] {value}"}]
-            })
-        except Exception as exc:  # noqa: BLE001
+            self.client.add([{"role": "assistant", "content": value}], user_id=self.user_id, metadata={"label": label})
+        except Exception as exc:
             self._dbg(f"write failed: {exc}")
 
     def log_interaction(self, user_text: str, assistant_text: str) -> None:
@@ -135,8 +118,8 @@ class MemoryClient:
         if assistant_text:
             messages.append({"role": "assistant", "content": assistant_text})
         try:
-            self._post("/add", {"userId": self.user_id, "messages": messages})
-        except Exception as exc:  # noqa: BLE001
+            self.client.add(messages, user_id=self.user_id)
+        except Exception as exc:
             self._dbg(f"log_interaction failed: {exc}")
 
     def retrieve_context(self, query: str, budget_tokens: int = 1024) -> Dict[str, Any]:
@@ -183,7 +166,7 @@ class MemoryClient:
                 labels = [x.strip() for x in labels.split(",") if x.strip()]
             items = self.find_items(q, labels=labels, limit=int(args.get("k", 12) or 12))
             try:
-                return True, json.dumps([{ "label": it.get("label"), "text": it.get("value") } for it in items])
+                return True, json.dumps([{"label": it.get("label"), "text": it.get("value")} for it in items])
             except Exception:
                 return True, f"found:{len(items)}"
         return False, "unsupported"
@@ -197,9 +180,10 @@ class MemoryClient:
 
     def export_json(self, user_id: Optional[str] = None) -> Dict[str, Any]:
         try:
-            data = self._post("/history", {"userId": user_id or self.user_id, "limit": 500})
-            return {"user_id": user_id or self.user_id, "items": data.get("items", [])}
-        except Exception as exc:  # noqa: BLE001
+            filters = {"OR": [{"user_id": user_id or self.user_id}]}
+            data = self.client.search("", filters=filters, version="v2")
+            return {"user_id": user_id or self.user_id, "items": [self._format_memory(item) for item in data]}
+        except Exception as exc:
             self._dbg(f"export_json failed: {exc}")
             return {"user_id": user_id or self.user_id, "items": []}
 
@@ -231,9 +215,8 @@ class MemoryClient:
                 val = (mfav.group(2) or "").strip()
                 if cat and val:
                     summary = f"favorite {cat}: {val}"
-                    ok, _ = self.execute_tool("memory_append", {"label": "preferences", "value": summary})
-                    if ok:
-                        captures.append(("preferences", summary))
+                    self.write("preferences", summary)
+                    captures.append(("preferences", summary))
         except Exception:
             pass
 
@@ -256,7 +239,6 @@ class MemoryClient:
             except Exception:
                 sval = val
             summary = f"{kind}: {sval}".strip()
-            ok, _ = self.execute_tool("memory_append" if label != "profile" else "usermemory_append", {"label": label, "value": summary})
-            if ok:
-                captures.append((label, summary))
+            self.write(label, summary)
+            captures.append((label, summary))
         return captures

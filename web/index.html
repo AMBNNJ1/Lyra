@@ -17,6 +17,8 @@
     let clerkScriptPromise = null;
     let clerkSignInMounted = false;
     let clerkTokenTemplate = null;
+    let clerkSignInUnmount = null;
+    let clerkUserButtonUnmount = null;
     const GUEST_LIMIT = 5;
     let guestId = null;
     let guestMessageCount = 0;
@@ -171,8 +173,7 @@
       if (!modal) return;
       const root = document.getElementById('clerkSignIn');
       if (!clerkInstance){
-        if (root){
-          clerkSignInMounted = false;
+        if (root && !clerkSignInMounted){
           root.innerHTML = '<p class="error">Authentication service is still loading...</p>';
         }
         modal.hidden = false;
@@ -180,6 +181,15 @@
       }
       if (root){
         if (!clerkSignInMounted){
+          try{
+            if (typeof clerkInstance.unmountSignIn === 'function'){
+              clerkInstance.unmountSignIn(root);
+            } else if (typeof clerkSignInUnmount === 'function'){
+              clerkSignInUnmount();
+              clerkSignInUnmount = null;
+            }
+          }catch(e){}
+          clerkSignInMounted = false;
           root.innerHTML = '';
           const redirectTarget = window.location.href.split('#')[0];
           const mountOptions = {
@@ -191,16 +201,23 @@
           try{
             const mountResult = clerkInstance.mountSignIn(root, mountOptions);
             clerkSignInMounted = true;
+            if (typeof mountResult === 'function'){
+              clerkSignInUnmount = mountResult;
+            } else {
+              clerkSignInUnmount = null;
+            }
             if (mountResult && typeof mountResult.then === 'function'){
               mountResult.catch((err) => {
                 console.error('[clerk] mountSignIn failed', err);
                 clerkSignInMounted = false;
+                clerkSignInUnmount = null;
                 root.innerHTML = '<p class="error">Unable to load sign in. Please try again.</p>';
               });
             }
           }catch(err){
             console.error('[clerk] mountSignIn failed', err);
             clerkSignInMounted = false;
+            clerkSignInUnmount = null;
             root.innerHTML = '<p class="error">Unable to load sign in. Please try again.</p>';
           }
         }
@@ -278,9 +295,19 @@
       const loginBtn = document.getElementById('loginBtn');
       const userContainer = document.getElementById('clerkUserButton');
       const modal = document.getElementById('authModal');
+      const signInRoot = document.getElementById('clerkSignIn');
       if (!clerkInstance){
         if (loginBtn) loginBtn.hidden = false;
-        if (userContainer){ userContainer.hidden = true; userContainer.innerHTML = ''; }
+        if (userContainer){
+          userContainer.hidden = true;
+          try{
+            if (typeof clerkUserButtonUnmount === 'function'){
+              clerkUserButtonUnmount();
+            }
+          }catch(e){}
+          clerkUserButtonUnmount = null;
+          userContainer.innerHTML = '';
+        }
         return;
       }
       if (clerkInstance.isSignedIn){
@@ -288,8 +315,19 @@
         if (loginBtn) loginBtn.hidden = true;
         if (userContainer){
           userContainer.hidden = false;
+          try{
+            if (typeof clerkInstance.unmountUserButton === 'function'){
+              clerkInstance.unmountUserButton(userContainer);
+            } else if (typeof clerkUserButtonUnmount === 'function'){
+              clerkUserButtonUnmount();
+            }
+          }catch(e){}
+          clerkUserButtonUnmount = null;
           userContainer.innerHTML = '';
-          clerkInstance.mountUserButton(userContainer, { appearance: { elements: { rootBox: 'user-button' } } });
+          const mountResult = clerkInstance.mountUserButton(userContainer, { appearance: { elements: { rootBox: 'user-button' } } });
+          if (typeof mountResult === 'function'){
+            clerkUserButtonUnmount = mountResult;
+          }
         }
         if (modal) modal.hidden = true;
         if (!hasActivatedAuth && authToken){
@@ -298,11 +336,34 @@
       } else {
         authToken = null;
         hasActivatedAuth = false;
-        if (userContainer){ userContainer.hidden = true; userContainer.innerHTML = ''; }
+        if (userContainer){
+          try{
+            if (typeof clerkInstance.unmountUserButton === 'function'){
+              clerkInstance.unmountUserButton(userContainer);
+            } else if (typeof clerkUserButtonUnmount === 'function'){
+              clerkUserButtonUnmount();
+            }
+          }catch(e){}
+          clerkUserButtonUnmount = null;
+          userContainer.hidden = true;
+          userContainer.innerHTML = '';
+        }
         if (loginBtn) loginBtn.hidden = false;
         if (modal) modal.hidden = true;
         if (historyPoll){ clearInterval(historyPoll); historyPoll = null; }
         if (emoPoll){ clearInterval(emoPoll); emoPoll = null; }
+        if (signInRoot){
+          try{
+            if (typeof clerkInstance.unmountSignIn === 'function'){
+              clerkInstance.unmountSignIn(signInRoot);
+            } else if (typeof clerkSignInUnmount === 'function'){
+              clerkSignInUnmount();
+            }
+          }catch(e){}
+          clerkSignInUnmount = null;
+          clerkSignInMounted = false;
+          signInRoot.innerHTML = '';
+        }
       }
     }
 
@@ -612,27 +673,29 @@
         <button id="theme" class="theme-btn" aria-label="Toggle theme">Theme</button>
       </div>
     </div>
-    <div class="main">
-      <aside class="avatar-pane">
-        <div class="unity-wrap">
-          <div id="avatarFrame" class="avatar-frame">
-            <video id="avatarVideo" class="avatar-video" src="/assets/nova_hero.mp4" autoplay muted loop playsinline preload="auto" aria-label="Avatar video"></video>
-            <img id="avatarFallback" class="avatar-photo" src="/assets/nova_avatar.jpg" alt="Avatar" hidden />
-          </div>
-          <div id="emotionCard" class="emotion-card" aria-live="polite">
-            <div class="em-head">
-              <span id="emEmoji" class="em-emoji">neutral</span>
-              <span id="emName" class="em-name">neutral</span>
-              <span id="emStrength" class="em-strength">0%</span>
+    <div class="main" style="display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: center; padding: 20px 0; flex-shrink: 0;">
+        <aside class="avatar-pane">
+          <div class="unity-wrap">
+            <div id="avatarFrame" class="avatar-frame">
+              <video id="avatarVideo" class="avatar-video" src="/assets/nova_hero.mp4" autoplay muted loop playsinline preload="auto" aria-label="Avatar video"></video>
+              <img id="avatarFallback" class="avatar-photo" src="/assets/nova_avatar.jpg" alt="Avatar" hidden />
             </div>
-            <div class="em-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-              <div id="emFill" class="em-fill"></div>
+            <div id="emotionCard" class="emotion-card" aria-live="polite">
+              <div class="em-head">
+                <span id="emEmoji" class="em-emoji">neutral</span>
+                <span id="emName" class="em-name">neutral</span>
+                <span id="emStrength" class="em-strength">0%</span>
+              </div>
+              <div class="em-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div id="emFill" class="em-fill"></div>
+              </div>
+              <div id="emTags" class="em-tags"></div>
             </div>
-            <div id="emTags" class="em-tags"></div>
           </div>
-        </div>
-      </aside>
-      <section class="chat-pane">
+        </aside>
+      </div>
+      <section class="chat-pane" style="flex: 1; width: 100%; max-width: 800px; margin: 0 auto;">
         <div id="scroller" class="chat-scroll">
           <div id="chat" class="chat">
             <!-- Messages will appear here -->

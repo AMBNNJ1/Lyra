@@ -7,6 +7,7 @@ import re
 import time
 
 from .memory import MemoryClient
+from .web_search_tool import web_search_tool
 import os
 
 
@@ -73,45 +74,7 @@ def build_tool_registry(mem: MemoryClient) -> ToolRegistry:
     reg = ToolRegistry()
 
     def search(query: str, k: int = 6) -> Dict[str, Any]:
-        brave = os.getenv("BRAVE_SUBSCRIPTION_TOKEN")
-        serper = os.getenv("SERPER_API_KEY")
-        with httpx.Client(timeout=15) as client:
-            if brave:
-                params = {
-                    "q": query,
-                    "count": min(int(k or 6), 20),
-                    "offset": 0,
-                    "search_lang": "en",
-                    "country": "US",
-                    "safesearch": "moderate",
-                }
-                r = client.get(
-                    "https://api.search.brave.com/res/v1/web/search",
-                    params=params,
-                    headers={"X-Subscription-Token": brave, "User-Agent": "Nova/1.0", "Accept": "application/json"},
-                )
-                r.raise_for_status()
-                data = r.json()
-                web = (data or {}).get("web") or {}
-                rows = (web.get("results") or [])[: int(k or 6)]
-                results = [
-                    {"title": it.get("title", ""), "url": it.get("url", ""), "snippet": it.get("description", "")} for it in rows
-                ]
-            elif serper:
-                r = client.post(
-                    "https://google.serper.dev/search",
-                    json={"q": query, "num": min(int(k or 6), 10)},
-                    headers={"X-API-KEY": serper, "User-Agent": "Nova/1.0", "Accept-Language": "en-US,en;q=0.9"},
-                )
-                r.raise_for_status()
-                data = r.json()
-                rows = (data or {}).get("organic", [])[: int(k or 6)]
-                results = [
-                    {"title": it.get("title", ""), "url": it.get("link", ""), "snippet": it.get("snippet", "")} for it in rows
-                ]
-            else:
-                raise RuntimeError("No web search provider configured (set BRAVE_SUBSCRIPTION_TOKEN or SERPER_API_KEY)")
-        return {"query": query, "results": results}
+        return web_search_tool(query, k=k)
 
     def browse(url: str, max_chars: int = 4000) -> str:
         r = httpx.get(url, timeout=15, headers={"User-Agent": "Nova/1.0"})

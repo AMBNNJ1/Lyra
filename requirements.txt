@@ -7,6 +7,6 @@ PyYAML
 rapidfuzz
 numpy
 qdrant-client
-kokoro>=0.9.2
+# kokoro==0.7.16  # Skipped due to Python 3.13 incompatibility; use alternative TTS
 python-jose[cryptography]
 pytest

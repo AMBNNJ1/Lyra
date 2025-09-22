@@ -12,7 +12,7 @@ from .sentiment import analyze_text_sentiment
 from .memory_auto import MemoryAutoUpdater, AutoMemoryConfig
 from .openai_compat import OpenAIChatLLM, ChatLLMConfig
 from .qwen import QwenLLM, LLMConfig
-from .agent_loop import Controller, build_tool_registry
+from .agent_loop import Controller, build_tool_registry, Task, Goal
 from .memory import MemoryClient  # re-import type for helper signature clarity
 
 
@@ -54,13 +54,13 @@ def _try_direct_memory_answer(mem: MemoryClient, question: str) -> Optional[str]
 
 
 class WebAgentSession:
-    def __init__(self, cfg: Dict[str, Any]):
+    def __init__(self, cfg: Dict[str, Any], user_id: str = "default"):
         self.cfg = cfg
-        self.mem = MemoryClient(provider=cfg.get("memory", {}).get("provider", "qdrant"))
+        self.mem = MemoryClient(provider=cfg.get("memory", {}).get("provider", "qdrant"), user_id=user_id)
         mem_cfg = cfg.get("memory", {})
         qdrant_cfg = mem_cfg.get("qdrant", {})
         persona = qdrant_cfg.get("persona") or mem_cfg.get("persona") or "Nova is friendly."
-        user_label = qdrant_cfg.get("user_label") or mem_cfg.get("user_label") or "User is Sam."
+        user_label = qdrant_cfg.get("user_label") or mem_cfg.get("user_label") or f"User is {user_id}."
         self.mem.ensure_agent(persona=persona, user_label=user_label, model=None, embedding=None)
         try:
             # Simple startup note
@@ -164,7 +164,8 @@ class WebAgentSession:
                (f"\nPersona and facts:\n{persona_text}" if persona_text else "") + \
                (f"\nCurrent goals:\n{goals_text}" if goals_text else "") + \
                (f"\nWorking summary:\n{working_text}" if working_text else "") + \
-               (f"\nLong-term memory:\n{long_term_text}" if long_term_text else "")
+               (f"\nLong-term memory:\n{long_term_text}" if long_term_text else "") + \
+               "\n\nIf the user's message requires up-to-date information, current events, or facts not in memory, use the 'search' tool to query the web before responding. Format tool calls as JSON: {\"thought\": \"reason\", \"action\": {\"name\": \"search\", \"args\": {\"query\": \"your query\"}}}."
         return seed
 
     def chat(self, user_text: str) -> Dict[str, Any]:
@@ -195,38 +196,28 @@ class WebAgentSession:
             except Exception:
                 pass
             return {"reply": assistant, "messages": self.truncated_history()}
-        messages = [{"role": "system", "content": self._build_system_seed(user_text)}] + self.truncated_history()
-        try:
-            if hasattr(self.llm, 'generate_from_messages'):
-                assistant = self.llm.generate_from_messages(messages)  # type: ignore[attr-defined]
-            else:
-                user_prompt = "\n\n".join([f"{m['role']}: {m['content']}" for m in messages if m['role'] != 'system'])
-                assistant = self.llm.generate(messages[0]["content"], user_prompt)
-        except Exception as e:
-            assistant = f"(error) generation failed: {e}"
-
-        # Tool call handling
-        try:
-            act = self.tools_controller.parse_action(assistant)
-            if act:
-                obs = self.tools_controller.dispatch(act)
-                tool_ctx = f"Tool '{act.name}' result:\n{obs.text}"
-                messages2 = messages + [{"role": "user", "content": tool_ctx}]
-                try:
-                    if hasattr(self.llm, 'generate_from_messages'):
-                        assistant2 = self.llm.generate_from_messages(messages2)  # type: ignore[attr-defined]
-                    else:
-                        user_prompt2 = "\n\n".join([f"{m['role']}: {m['content']}" for m in messages2 if m['role'] != 'system'])
-                        assistant2 = self.llm.generate(messages[0]["content"], user_prompt2)
-                    if isinstance(assistant2, str) and assistant2.strip():
-                        assistant = assistant2
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
+    
+        # Use Controller for tool-aware response
+        goal = self.tools_controller.select_goal()  # Use a general goal for user response
+        task = self.tools_controller.ensure_tasks(goal)[0] if self.tools_controller.ensure_tasks(goal) else None
+        if not task:
+            task = Task(id="t_general", text="Respond to the user message, using tools if needed for information.", goal_id=goal.id)
+        memories = self.tools_controller.retrieve_memories(goal, task)
+        prompt = self.tools_controller.build_prompt(goal, task, memories)
+        llm_out = self.tools_controller.run_llm(prompt)
+        action = self.tools_controller.choose_action(prompt, task, llm_out)
+        if action:
+            obs = self.tools_controller.dispatch(action)
+            tool_ctx = f"Tool result: {obs.text}"
+            # Re-run LLM with tool observation
+            prompt2 = prompt + f"\n\nUser message: {user_text}\n{tool_ctx}\nNow generate the final response."
+            llm_out2 = self.tools_controller.run_llm(prompt2)
+            assistant = str(llm_out2)
+        else:
+            assistant = str(llm_out)
+    
         self.history.append({"role": "assistant", "content": assistant})
-
+    
         # Sentiment, auto memory
         try:
             ts = analyze_text_sentiment(assistant)
@@ -244,12 +235,12 @@ class WebAgentSession:
             self.auto_mem.process_turn(user_text or "", assistant, working_summary)
         except Exception:
             pass
-
+    
         return {"reply": assistant, "messages": self.truncated_history()}
 
     def stream_chat(self, user_text: str) -> Iterator[str]:
         """Yield assistant text deltas for streaming web UI.
-
+    
         Falls back to a single non-streaming completion when the underlying LLM
         does not support streaming.
         """
@@ -260,7 +251,7 @@ class WebAgentSession:
                 self.ee.appraise_from_text(user_text)
             except Exception:
                 pass
-
+    
         # Fast path: direct memory Q&A for profile/preferences
         try:
             direct = _try_direct_memory_answer(self.mem, user_text)
@@ -281,45 +272,42 @@ class WebAgentSession:
                 pass
             yield assistant
             return
-
-        messages = [{"role": "system", "content": self._build_system_seed(user_text)}] + self.truncated_history()
-
-        assembled_parts: List[str] = []
-        # Try streaming first if the LLM provides it
-        if hasattr(self.llm, "stream_from_messages"):
+    
+        # Use Controller for tool-aware response (resolve tools first, then stream final)
+        goal = self.tools_controller.select_goal()  # Use a general goal for user response
+        task = self.tools_controller.ensure_tasks(goal)[0] if self.tools_controller.ensure_tasks(goal) else None
+        if not task:
+            task = Task(id="t_general", text="Respond to the user message, using tools if needed for information.", goal_id=goal.id)
+        memories = self.tools_controller.retrieve_memories(goal, task)
+        prompt = self.tools_controller.build_prompt(goal, task, memories)
+        llm_out = self.tools_controller.run_llm(prompt)
+        action = self.tools_controller.choose_action(prompt, task, llm_out)
+        tool_ctx = ""
+        if action:
+            obs = self.tools_controller.dispatch(action)
+            tool_ctx = f"Tool result: {obs.text}"
+            # Re-run LLM with tool observation for final response
+            prompt2 = prompt + f"\n\nUser message: {user_text}\n{tool_ctx}\nNow generate the final response."
+            llm_out2 = self.tools_controller.run_llm(prompt2)
+            assistant = str(llm_out2)
+        else:
+            assistant = str(llm_out)
+    
+        # Stream the final assistant response
+        if isinstance(self.llm, OpenAIChatLLM):
+            # Reconstruct messages for streaming the final response
+            messages_final = [{"role": "system", "content": self._build_system_seed(user_text)}] + self.truncated_history() + [{"role": "user", "content": tool_ctx if tool_ctx else user_text}]
             try:
-                for piece in self.llm.stream_from_messages(messages):  # type: ignore[attr-defined]
+                for piece in self.llm.stream_from_messages(messages_final):
                     if isinstance(piece, str) and piece:
-                        assembled_parts.append(piece)
                         yield piece
             except Exception:
-                # Fallback to single-shot generation on error
-                try:
-                    if hasattr(self.llm, "generate_from_messages"):
-                        text = self.llm.generate_from_messages(messages)  # type: ignore[attr-defined]
-                    else:
-                        user_prompt = "\n\n".join([f"{m['role']}: {m['content']}" for m in messages if m['role'] != 'system'])
-                        text = self.llm.generate(messages[0]["content"], user_prompt)
-                except Exception as e2:
-                    text = f"(error) streaming failed: {e2}"
-                assembled_parts = [text]
-                yield text
+                yield assistant
         else:
-            # No streaming support; one-shot response
-            try:
-                if hasattr(self.llm, "generate_from_messages"):
-                    text = self.llm.generate_from_messages(messages)  # type: ignore[attr-defined]
-                else:
-                    user_prompt = "\n\n".join([f"{m['role']}: {m['content']}" for m in messages if m['role'] != 'system'])
-                    text = self.llm.generate(messages[0]["content"], user_prompt)
-            except Exception as e:
-                text = f"(error) generation failed: {e}"
-            assembled_parts = [text]
-            yield text
-
-        assistant = "".join(assembled_parts)
+            yield assistant
+    
         self.history.append({"role": "assistant", "content": assistant})
-
+    
         # Post-processing: sentiment and memory updates
         try:
             ts = analyze_text_sentiment(assistant)
@@ -336,7 +324,7 @@ class WebAgentSession:
             self.auto_mem.process_turn(user_text or "", assistant, working_summary)
         except Exception:
             pass
-
+    
         # Nothing else to yield; the SSE route will append [DONE]
         return
 

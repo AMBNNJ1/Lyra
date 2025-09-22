@@ -1,0 +1,990 @@
+[mem0-service] add failed AuthenticationError: 401 Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (D:\NewNeuro\mem0-service\node_modules\openai\error.js:48:20)
+    at OpenAI.makeStatusError (D:\NewNeuro\mem0-service\node_modules\openai\core.js:302:33)
+    at OpenAI.makeRequest (D:\NewNeuro\mem0-service\node_modules\openai\core.js:346:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async OpenAILLM.generateResponse (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:206:24)
+    at async _Memory.addToVectorStore (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4244:22)
+    at async _Memory.add (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4199:31)
+    at async D:\NewNeuro\mem0-service\server.js:104:20 {
+  status: 401,
+  headers: {
+    'alt-svc': 'h3=":443"; ma=86400',
+    'cf-cache-status': 'DYNAMIC',
+    'cf-ray': '98120ee63dd2bc4a-ZRH',
+    connection: 'keep-alive',
+    'content-length': '258',
+    'content-type': 'application/json; charset=utf-8',
+    date: 'Thu, 18 Sep 2025 16:00:47 GMT',
+    server: 'cloudflare',
+    'set-cookie': '__cf_bm=RfFbM1OCVqNbqrzxbupnJOr3rG7QnZ5AfAXZ5Jeh_JY-1758211247-1.0.1.1-tQ9Hy8M7nUc64KJlNkJ8UjIHxVpljqbn9IDnd89ntkDKTxfm0hcoK9P0Nt5uClsVVBC7eXfjnbmhD7N994KXM_30hNyByEs3fCgvkWUurHI; path=/; expires=Thu, 18-Sep-25 16:30:47 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=2XpVQ5An6c3p24Tj0D.fqjciQCjUL72Gxchyf0uqYUc-1758211247226-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    vary: 'Origin',
+    'x-content-type-options': 'nosniff',
+    'x-envoy-upstream-service-time': '9',
+    'x-openai-proxy-wasm': 'v0.1',
+    'x-request-id': 'req_e80fbf2624b143b9b2fe45c12a7ff670'
+  },
+  request_id: 'req_e80fbf2624b143b9b2fe45c12a7ff670',
+  error: {
+    message: 'Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.',
+    type: 'invalid_request_error',
+    param: null,
+    code: 'invalid_api_key'
+  },
+  code: 'invalid_api_key',
+  param: null,
+  type: 'invalid_request_error'
+}
+[mem0-service] add failed AuthenticationError: 401 Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (D:\NewNeuro\mem0-service\node_modules\openai\error.js:48:20)
+    at OpenAI.makeStatusError (D:\NewNeuro\mem0-service\node_modules\openai\core.js:302:33)
+    at OpenAI.makeRequest (D:\NewNeuro\mem0-service\node_modules\openai\core.js:346:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async OpenAILLM.generateResponse (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:206:24)
+    at async _Memory.addToVectorStore (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4244:22)
+    at async _Memory.add (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4199:31)
+    at async D:\NewNeuro\mem0-service\server.js:104:20 {
+  status: 401,
+  headers: {
+    'alt-svc': 'h3=":443"; ma=86400',
+    'cf-cache-status': 'DYNAMIC',
+    'cf-ray': '98120ee64d2bfcc9-ZRH',
+    connection: 'keep-alive',
+    'content-length': '258',
+    'content-type': 'application/json; charset=utf-8',
+    date: 'Thu, 18 Sep 2025 16:00:47 GMT',
+    server: 'cloudflare',
+    'set-cookie': '__cf_bm=NUtfcdUzcDMkUBLdvtPOUb6FAOlK7nCvkSMoS7l2hWI-1758211247-1.0.1.1-bl5W5esDpRoNmcq_5T2wwBjq7c9sOf37c48BJsy9vDKXGEc5DVkAvqcdiE6qLlFMvVO6BkYFvS3rPqJtuhuZIVh0ezxTr4n95ZKlAy4bbjo; path=/; expires=Thu, 18-Sep-25 16:30:47 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=arQ2ZoSXo3RdwNJcnlrolobRNRpgQFepM_sUemhbN8Y-1758211247284-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    vary: 'Origin',
+    'x-content-type-options': 'nosniff',
+    'x-envoy-upstream-service-time': '1',
+    'x-openai-proxy-wasm': 'v0.1',
+    'x-request-id': 'req_5483e07dba0746ab8411ac9590f3a336'
+  },
+  request_id: 'req_5483e07dba0746ab8411ac9590f3a336',
+  error: {
+    message: 'Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.',
+    type: 'invalid_request_error',
+    param: null,
+    code: 'invalid_api_key'
+  },
+  code: 'invalid_api_key',
+  param: null,
+  type: 'invalid_request_error'
+}
+[mem0-service] add failed AuthenticationError: 401 Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (D:\NewNeuro\mem0-service\node_modules\openai\error.js:48:20)
+    at OpenAI.makeStatusError (D:\NewNeuro\mem0-service\node_modules\openai\core.js:302:33)
+    at OpenAI.makeRequest (D:\NewNeuro\mem0-service\node_modules\openai\core.js:346:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async OpenAILLM.generateResponse (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:206:24)
+    at async _Memory.addToVectorStore (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4244:22)
+    at async _Memory.add (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4199:31)
+    at async D:\NewNeuro\mem0-service\server.js:104:20 {
+  status: 401,
+  headers: {
+    'alt-svc': 'h3=":443"; ma=86400',
+    'cf-cache-status': 'DYNAMIC',
+    'cf-ray': '98120ee83ff7fcc9-ZRH',
+    connection: 'keep-alive',
+    'content-length': '258',
+    'content-type': 'application/json; charset=utf-8',
+    date: 'Thu, 18 Sep 2025 16:00:47 GMT',
+    server: 'cloudflare',
+    'set-cookie': '__cf_bm=5WVFoJISUS1sQG1etLTjNxV8Igph_iQ98h83eyyTYDo-1758211247-1.0.1.1-yaefOQzDVDvDGyamZuFuAPQqO.lJFvb6w1jQnPtl6a4V5aQ5HPDeLHDLbbSDX599B6bVKbYlkVcc64uWexIQij4pp1jQJvzWkgOE7461BP4; path=/; expires=Thu, 18-Sep-25 16:30:47 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=fc0_JaqR8hdfFnnQ1wegwQr8vhrowWnbJzDwhvkoMmc-1758211247660-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    vary: 'Origin',
+    'x-content-type-options': 'nosniff',
+    'x-envoy-upstream-service-time': '0',
+    'x-openai-proxy-wasm': 'v0.1',
+    'x-request-id': 'req_f219fee5b9d24df99342b0e2501ce5b6'
+  },
+  request_id: 'req_f219fee5b9d24df99342b0e2501ce5b6',
+  error: {
+    message: 'Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.',
+    type: 'invalid_request_error',
+    param: null,
+    code: 'invalid_api_key'
+  },
+  code: 'invalid_api_key',
+  param: null,
+  type: 'invalid_request_error'
+}
+[mem0-service] add failed AuthenticationError: 401 Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (D:\NewNeuro\mem0-service\node_modules\openai\error.js:48:20)
+    at OpenAI.makeStatusError (D:\NewNeuro\mem0-service\node_modules\openai\core.js:302:33)
+    at OpenAI.makeRequest (D:\NewNeuro\mem0-service\node_modules\openai\core.js:346:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async OpenAILLM.generateResponse (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:206:24)
+    at async _Memory.addToVectorStore (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4244:22)
+    at async _Memory.add (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4199:31)
+    at async D:\NewNeuro\mem0-service\server.js:104:20 {
+  status: 401,
+  headers: {
+    'alt-svc': 'h3=":443"; ma=86400',
+    'cf-cache-status': 'DYNAMIC',
+    'cf-ray': '98120ee8f866bc4a-ZRH',
+    connection: 'keep-alive',
+    'content-length': '258',
+    'content-type': 'application/json; charset=utf-8',
+    date: 'Thu, 18 Sep 2025 16:00:47 GMT',
+    server: 'cloudflare',
+    'set-cookie': '__cf_bm=ObZ2SqsTA7wRfA.IGqztZMGs0TxLAkImk10s55F.KGY-1758211247-1.0.1.1-vnjE56YQwkKwEQy.8kRMP1WVcekOo0QwFaZg40eMZ7v1tGIvUCjbKET_6vtQ2_PdK5WME9JLMRCaQfE2fGHtqbzUsG1_siOCJrwd5uM.LQE; path=/; expires=Thu, 18-Sep-25 16:30:47 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=WMMNFK1ryTasIX5fvdeFmFei3TxY.M569OXMEcttdkU-1758211247662-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    vary: 'Origin',
+    'x-content-type-options': 'nosniff',
+    'x-envoy-upstream-service-time': '1',
+    'x-openai-proxy-wasm': 'v0.1',
+    'x-request-id': 'req_97b13fd5c13647d2a4d731f58ad86bc7'
+  },
+  request_id: 'req_97b13fd5c13647d2a4d731f58ad86bc7',
+  error: {
+    message: 'Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.',
+    type: 'invalid_request_error',
+    param: null,
+    code: 'invalid_api_key'
+  },
+  code: 'invalid_api_key',
+  param: null,
+  type: 'invalid_request_error'
+}
+[mem0-service] search failed APIConnectionError: Connection error.
+    at OpenAI.makeRequest (D:\NewNeuro\mem0-service\node_modules\openai\core.js:332:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async OpenAIEmbedder.embed (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:126:22)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4401:28)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  status: undefined,
+  headers: undefined,
+  request_id: undefined,
+  error: undefined,
+  code: undefined,
+  param: undefined,
+  type: undefined,
+  cause: FetchError: request to http://127.0.0.1:1234/v1/embeddings failed, reason: connect ECONNREFUSED 127.0.0.1:1234
+      at ClientRequest.<anonymous> (D:\NewNeuro\mem0-service\node_modules\node-fetch\lib\index.js:1501:11)
+      at ClientRequest.emit (node:events:507:28)
+      at emitErrorEvent (node:_http_client:106:11)
+      at Socket.socketErrorListener (node:_http_client:574:5)
+      at Socket.emit (node:events:519:35)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    type: 'system',
+    errno: 'ECONNREFUSED',
+    code: 'ECONNREFUSED'
+  }
+}
+[mem0-service] search failed APIConnectionError: Connection error.
+    at OpenAI.makeRequest (D:\NewNeuro\mem0-service\node_modules\openai\core.js:332:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async OpenAIEmbedder.embed (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:126:22)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4401:28)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  status: undefined,
+  headers: undefined,
+  request_id: undefined,
+  error: undefined,
+  code: undefined,
+  param: undefined,
+  type: undefined,
+  cause: FetchError: request to http://127.0.0.1:1234/v1/embeddings failed, reason: connect ECONNREFUSED 127.0.0.1:1234
+      at ClientRequest.<anonymous> (D:\NewNeuro\mem0-service\node_modules\node-fetch\lib\index.js:1501:11)
+      at ClientRequest.emit (node:events:507:28)
+      at emitErrorEvent (node:_http_client:106:11)
+      at Socket.socketErrorListener (node:_http_client:574:5)
+      at Socket.emit (node:events:519:35)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    type: 'system',
+    errno: 'ECONNREFUSED',
+    code: 'ECONNREFUSED'
+  }
+}
+[mem0-service] add failed AuthenticationError: 401 Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (D:\NewNeuro\mem0-service\node_modules\openai\error.js:48:20)
+    at OpenAI.makeStatusError (D:\NewNeuro\mem0-service\node_modules\openai\core.js:302:33)
+    at OpenAI.makeRequest (D:\NewNeuro\mem0-service\node_modules\openai\core.js:346:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async OpenAILLM.generateResponse (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:206:24)
+    at async _Memory.addToVectorStore (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4244:22)
+    at async _Memory.add (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4199:31)
+    at async D:\NewNeuro\mem0-service\server.js:104:20 {
+  status: 401,
+  headers: {
+    'alt-svc': 'h3=":443"; ma=86400',
+    'cf-cache-status': 'DYNAMIC',
+    'cf-ray': '981211fce9d003a5-ZRH',
+    connection: 'keep-alive',
+    'content-length': '258',
+    'content-type': 'application/json; charset=utf-8',
+    date: 'Thu, 18 Sep 2025 16:02:53 GMT',
+    server: 'cloudflare',
+    'set-cookie': '__cf_bm=vZNhDq2gfLwreDrzq9Go8n0WjSjC3dF1MQ_yHgQ8PyQ-1758211373-1.0.1.1-LczB4U3saw5zVpPhhYhuf8tq1ksms8lEG0uVP5qSBpBfdouXJAG.gJuM_fGFslxz_spBsUmn7bPEl2wpsIj8dCpk1Mh47Rzq1ILMXCXB7Ts; path=/; expires=Thu, 18-Sep-25 16:32:53 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=OivZcx7oDLQW4UDr8.9F.XvG5qJZEJJSIFwZmcKIZ94-1758211373697-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    vary: 'Origin',
+    'x-content-type-options': 'nosniff',
+    'x-envoy-upstream-service-time': '1',
+    'x-openai-proxy-wasm': 'v0.1',
+    'x-request-id': 'req_6d1d44dcbf594f7e99289b28ad4622a6'
+  },
+  request_id: 'req_6d1d44dcbf594f7e99289b28ad4622a6',
+  error: {
+    message: 'Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.',
+    type: 'invalid_request_error',
+    param: null,
+    code: 'invalid_api_key'
+  },
+  code: 'invalid_api_key',
+  param: null,
+  type: 'invalid_request_error'
+}
+[mem0-service] add failed AuthenticationError: 401 Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (D:\NewNeuro\mem0-service\node_modules\openai\error.js:48:20)
+    at OpenAI.makeStatusError (D:\NewNeuro\mem0-service\node_modules\openai\core.js:302:33)
+    at OpenAI.makeRequest (D:\NewNeuro\mem0-service\node_modules\openai\core.js:346:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async OpenAILLM.generateResponse (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:206:24)
+    at async _Memory.addToVectorStore (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4244:22)
+    at async _Memory.add (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4199:31)
+    at async D:\NewNeuro\mem0-service\server.js:104:20 {
+  status: 401,
+  headers: {
+    'alt-svc': 'h3=":443"; ma=86400',
+    'cf-cache-status': 'DYNAMIC',
+    'cf-ray': '981211fcf8db2397-ZRH',
+    connection: 'keep-alive',
+    'content-length': '258',
+    'content-type': 'application/json; charset=utf-8',
+    date: 'Thu, 18 Sep 2025 16:02:53 GMT',
+    server: 'cloudflare',
+    'set-cookie': '__cf_bm=P2h.PWIbtOtVxTkJreLGKETbTY2tMoZSqta.mxwX9rQ-1758211373-1.0.1.1-1jVq5ezupOhyBv96F86VEIJ1w.O70lEkq17Pyq.h.LxQGWIQQ0HqOVJ8azVjvL1Q16ii_vlad1R.ZpJ0IWDFNryjgC57knhVWRA.DX6ykY4; path=/; expires=Thu, 18-Sep-25 16:32:53 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=Ac3bvb5rgEpT7S13zyM4LBkoqui90uHi3CZf7Fx2iiQ-1758211373768-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    vary: 'Origin',
+    'x-content-type-options': 'nosniff',
+    'x-envoy-upstream-service-time': '2',
+    'x-openai-proxy-wasm': 'v0.1',
+    'x-request-id': 'req_1a7baf67df734cefae0cb11a566665e9'
+  },
+  request_id: 'req_1a7baf67df734cefae0cb11a566665e9',
+  error: {
+    message: 'Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.',
+    type: 'invalid_request_error',
+    param: null,
+    code: 'invalid_api_key'
+  },
+  code: 'invalid_api_key',
+  param: null,
+  type: 'invalid_request_error'
+}
+[mem0-service] add failed AuthenticationError: 401 Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (D:\NewNeuro\mem0-service\node_modules\openai\error.js:48:20)
+    at OpenAI.makeStatusError (D:\NewNeuro\mem0-service\node_modules\openai\core.js:302:33)
+    at OpenAI.makeRequest (D:\NewNeuro\mem0-service\node_modules\openai\core.js:346:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async OpenAILLM.generateResponse (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:206:24)
+    at async _Memory.addToVectorStore (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4244:22)
+    at async _Memory.add (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4199:31)
+    at async D:\NewNeuro\mem0-service\server.js:104:20 {
+  status: 401,
+  headers: {
+    'alt-svc': 'h3=":443"; ma=86400',
+    'cf-cache-status': 'DYNAMIC',
+    'cf-ray': '981211fe99952397-ZRH',
+    connection: 'keep-alive',
+    'content-length': '258',
+    'content-type': 'application/json; charset=utf-8',
+    date: 'Thu, 18 Sep 2025 16:02:53 GMT',
+    server: 'cloudflare',
+    'set-cookie': '__cf_bm=sfYSFjFDmM5_SnGiq8V2QzsPcuF7Cm0H5y6I0fUQuBE-1758211373-1.0.1.1-dYQtaSp4gXUHH7KqVaI3LlcHGFxlNVrXeHYr7FzAZmR8ZiSCwvwUambTf7Jp8WanGJJ4SBp7uq26xRcQ60D.vcWbfMvmO28U.QMoQEdU.vA; path=/; expires=Thu, 18-Sep-25 16:32:53 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=VlHkNtWb8EzRWMUx8McyuGW3BCAcOQeml1cpbFagCcw-1758211373972-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    vary: 'Origin',
+    'x-content-type-options': 'nosniff',
+    'x-envoy-upstream-service-time': '0',
+    'x-openai-proxy-wasm': 'v0.1',
+    'x-request-id': 'req_407d5295aeb24cb5bb03637614a53e85'
+  },
+  request_id: 'req_407d5295aeb24cb5bb03637614a53e85',
+  error: {
+    message: 'Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.',
+    type: 'invalid_request_error',
+    param: null,
+    code: 'invalid_api_key'
+  },
+  code: 'invalid_api_key',
+  param: null,
+  type: 'invalid_request_error'
+}
+[mem0-service] add failed AuthenticationError: 401 Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (D:\NewNeuro\mem0-service\node_modules\openai\error.js:48:20)
+    at OpenAI.makeStatusError (D:\NewNeuro\mem0-service\node_modules\openai\core.js:302:33)
+    at OpenAI.makeRequest (D:\NewNeuro\mem0-service\node_modules\openai\core.js:346:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async OpenAILLM.generateResponse (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:206:24)
+    at async _Memory.addToVectorStore (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4244:22)
+    at async _Memory.add (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4199:31)
+    at async D:\NewNeuro\mem0-service\server.js:104:20 {
+  status: 401,
+  headers: {
+    'alt-svc': 'h3=":443"; ma=86400',
+    'cf-cache-status': 'DYNAMIC',
+    'cf-ray': '981211ff0cef03a5-ZRH',
+    connection: 'keep-alive',
+    'content-length': '258',
+    'content-type': 'application/json; charset=utf-8',
+    date: 'Thu, 18 Sep 2025 16:02:54 GMT',
+    server: 'cloudflare',
+    'set-cookie': '__cf_bm=QUgIRpjvupQHfGn6_0v6RdkfMHYYlOcqzPnVX_dQVaQ-1758211374-1.0.1.1-3b04ZrZW6giUtXGqT2WU3Z.sD_yb2jhg4enz0a4gqgUYYpaT380NPiGtUgp4FqSx0kiXFxtVvDpo71stk_wXFfRSTHt9OsfOd9yKUTJkl3k; path=/; expires=Thu, 18-Sep-25 16:32:54 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=k95oXo7Tu0lIafVTskLPDpy4UsOCqDnsR_t.Z8Lilow-1758211374071-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    vary: 'Origin',
+    'x-content-type-options': 'nosniff',
+    'x-envoy-upstream-service-time': '1',
+    'x-openai-proxy-wasm': 'v0.1',
+    'x-request-id': 'req_220028d681bb452b9f2f55ae29998228'
+  },
+  request_id: 'req_220028d681bb452b9f2f55ae29998228',
+  error: {
+    message: 'Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.',
+    type: 'invalid_request_error',
+    param: null,
+    code: 'invalid_api_key'
+  },
+  code: 'invalid_api_key',
+  param: null,
+  type: 'invalid_request_error'
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:02:57 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000055154
+  }
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:02:57 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000003898
+  }
+}
+[mem0-service] add failed AuthenticationError: 401 Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (D:\NewNeuro\mem0-service\node_modules\openai\error.js:48:20)
+    at OpenAI.makeStatusError (D:\NewNeuro\mem0-service\node_modules\openai\core.js:302:33)
+    at OpenAI.makeRequest (D:\NewNeuro\mem0-service\node_modules\openai\core.js:346:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async OpenAILLM.generateResponse (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:206:24)
+    at async _Memory.addToVectorStore (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4244:22)
+    at async _Memory.add (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4199:31)
+    at async D:\NewNeuro\mem0-service\server.js:104:20 {
+  status: 401,
+  headers: {
+    'alt-svc': 'h3=":443"; ma=86400',
+    'cf-cache-status': 'DYNAMIC',
+    'cf-ray': '9812122abf8bbbff-ZRH',
+    connection: 'keep-alive',
+    'content-length': '258',
+    'content-type': 'application/json; charset=utf-8',
+    date: 'Thu, 18 Sep 2025 16:03:01 GMT',
+    server: 'cloudflare',
+    'set-cookie': '__cf_bm=Q8OIAaEUNKjJemHol0rN8Hzt05F5qJmAiW5p5YWSaYY-1758211381-1.0.1.1-GfrBEyXAlDeWlG8UDHpBv9ERR6c3ayqoRLW9im7R_IFpQG_zPLuKSdfS0pJOuXyF0fL6RrIqObYrcS3kSFmGYcweocIU7L9r4RpY1KaAosk; path=/; expires=Thu, 18-Sep-25 16:33:01 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=qGhHtBA2kAIeSYuHtsUNtYXAJYGUn5gFpk2cEk5ic6I-1758211381078-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    vary: 'Origin',
+    'x-content-type-options': 'nosniff',
+    'x-envoy-upstream-service-time': '1',
+    'x-openai-proxy-wasm': 'v0.1',
+    'x-request-id': 'req_932305644a7c411bb7d0c83b0a084cc0'
+  },
+  request_id: 'req_932305644a7c411bb7d0c83b0a084cc0',
+  error: {
+    message: 'Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.',
+    type: 'invalid_request_error',
+    param: null,
+    code: 'invalid_api_key'
+  },
+  code: 'invalid_api_key',
+  param: null,
+  type: 'invalid_request_error'
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:03:01 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000004248
+  }
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:03:07 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000004054
+  }
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:03:07 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000004194
+  }
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:03:09 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000004366
+  }
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:03:10 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.00000388
+  }
+}
+[mem0-service] add failed AuthenticationError: 401 Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (D:\NewNeuro\mem0-service\node_modules\openai\error.js:48:20)
+    at OpenAI.makeStatusError (D:\NewNeuro\mem0-service\node_modules\openai\core.js:302:33)
+    at OpenAI.makeRequest (D:\NewNeuro\mem0-service\node_modules\openai\core.js:346:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async OpenAILLM.generateResponse (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:206:24)
+    at async _Memory.addToVectorStore (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4244:22)
+    at async _Memory.add (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4199:31)
+    at async D:\NewNeuro\mem0-service\server.js:104:20 {
+  status: 401,
+  headers: {
+    'alt-svc': 'h3=":443"; ma=86400',
+    'cf-cache-status': 'DYNAMIC',
+    'cf-ray': '9812127fec7d985f-ZRH',
+    connection: 'keep-alive',
+    'content-length': '258',
+    'content-type': 'application/json; charset=utf-8',
+    date: 'Thu, 18 Sep 2025 16:03:14 GMT',
+    server: 'cloudflare',
+    'set-cookie': '__cf_bm=.8UZmnEdqqRSXZ5g8QPcY3kot.GpNBnB3wVSu72rVg4-1758211394-1.0.1.1-DLhChpWMGIHuqrwuE9pBdZOUUbyCf8KX3DD0yrpwSQ4rwABee6ilL_k9nLxwbV3GWFtQlQHPNgnYrdqXD3DjkXyzZ8J8r6Pw69w0xwjJvo8; path=/; expires=Thu, 18-Sep-25 16:33:14 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=CGq8JIuhcfjiaKh6ZPaA0tirVQIiUJznsTu04cd6_Ks-1758211394662-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    vary: 'Origin',
+    'x-content-type-options': 'nosniff',
+    'x-envoy-upstream-service-time': '1',
+    'x-openai-proxy-wasm': 'v0.1',
+    'x-request-id': 'req_541ee453bf81498581077e4961484395'
+  },
+  request_id: 'req_541ee453bf81498581077e4961484395',
+  error: {
+    message: 'Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.',
+    type: 'invalid_request_error',
+    param: null,
+    code: 'invalid_api_key'
+  },
+  code: 'invalid_api_key',
+  param: null,
+  type: 'invalid_request_error'
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:03:14 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000004806
+  }
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:03:15 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000004681
+  }
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:03:42 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000004128
+  }
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:03:43 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000004839
+  }
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:03:47 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000005006
+  }
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:03:47 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000004531
+  }
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:03:47 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000004512
+  }
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:03:47 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000003475
+  }
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:03:48 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000004776
+  }
+}
+[mem0-service] add failed AuthenticationError: 401 Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (D:\NewNeuro\mem0-service\node_modules\openai\error.js:48:20)
+    at OpenAI.makeStatusError (D:\NewNeuro\mem0-service\node_modules\openai\core.js:302:33)
+    at OpenAI.makeRequest (D:\NewNeuro\mem0-service\node_modules\openai\core.js:346:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async OpenAILLM.generateResponse (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:206:24)
+    at async _Memory.addToVectorStore (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4244:22)
+    at async _Memory.add (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4199:31)
+    at async D:\NewNeuro\mem0-service\server.js:104:20 {
+  status: 401,
+  headers: {
+    'alt-svc': 'h3=":443"; ma=86400',
+    'cf-cache-status': 'DYNAMIC',
+    'cf-ray': '9812137ffa4ebbf3-ZRH',
+    connection: 'keep-alive',
+    'content-length': '258',
+    'content-type': 'application/json; charset=utf-8',
+    date: 'Thu, 18 Sep 2025 16:03:55 GMT',
+    server: 'cloudflare',
+    'set-cookie': '__cf_bm=RXBRLEuLWNbT.jp9Jde5kLFJzoMBc_ej4cjl31QEf5Q-1758211435-1.0.1.1-zml5F7UN.n06FTOsZoiW7QYZ07uoW0jXU7fIhrZCZx_WEjBVcapQmrfr7v5qgEY01h7yIDUtZz_tQ9Clv10ELsKQLaisXJSkkxvn4YWkgzs; path=/; expires=Thu, 18-Sep-25 16:33:55 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=l3aLLJ8fKjYOYoW3QnckUnsiweR7IalNogMTEnGuFh4-1758211435661-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    vary: 'Origin',
+    'x-content-type-options': 'nosniff',
+    'x-envoy-upstream-service-time': '2',
+    'x-openai-proxy-wasm': 'v0.1',
+    'x-request-id': 'req_24a21484133e47ca9bcb335b7fdaf5ec'
+  },
+  request_id: 'req_24a21484133e47ca9bcb335b7fdaf5ec',
+  error: {
+    message: 'Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.',
+    type: 'invalid_request_error',
+    param: null,
+    code: 'invalid_api_key'
+  },
+  code: 'invalid_api_key',
+  param: null,
+  type: 'invalid_request_error'
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:03:56 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000004003
+  }
+}
+[mem0-service] add failed AuthenticationError: 401 Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (D:\NewNeuro\mem0-service\node_modules\openai\error.js:48:20)
+    at OpenAI.makeStatusError (D:\NewNeuro\mem0-service\node_modules\openai\core.js:302:33)
+    at OpenAI.makeRequest (D:\NewNeuro\mem0-service\node_modules\openai\core.js:346:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async OpenAILLM.generateResponse (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:206:24)
+    at async _Memory.addToVectorStore (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4244:22)
+    at async _Memory.add (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4199:31)
+    at async D:\NewNeuro\mem0-service\server.js:104:20 {
+  status: 401,
+  headers: {
+    'alt-svc': 'h3=":443"; ma=86400',
+    'cf-cache-status': 'DYNAMIC',
+    'cf-ray': '981213b59de2be63-ZRH',
+    connection: 'keep-alive',
+    'content-length': '258',
+    'content-type': 'application/json; charset=utf-8',
+    date: 'Thu, 18 Sep 2025 16:04:04 GMT',
+    server: 'cloudflare',
+    'set-cookie': '__cf_bm=MsT0TbG5k6qG7hwHsJmTu.9Kbw80bFMJaL.HA68OhCg-1758211444-1.0.1.1-jYq18VmoeW8llB4oqJbEC_3jD0Bb.YQjIWhVhKgAWJmr_bvgsxwaju9RWD5L7BZIHWKVNAg0K_hHIP19kh__CVaSdzim.wyXKh_cpPTujxQ; path=/; expires=Thu, 18-Sep-25 16:34:04 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=572wWBMOQh2nTnbGBgln2OdXcnYawZsNWOO47DFXivo-1758211444296-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    vary: 'Origin',
+    'x-content-type-options': 'nosniff',
+    'x-envoy-upstream-service-time': '3',
+    'x-openai-proxy-wasm': 'v0.1',
+    'x-request-id': 'req_82baa2430a08476189bffd3c1ebcd629'
+  },
+  request_id: 'req_82baa2430a08476189bffd3c1ebcd629',
+  error: {
+    message: 'Incorrect API key provided: lmstudio. You can find your API key at https://platform.openai.com/account/api-keys.',
+    type: 'invalid_request_error',
+    param: null,
+    code: 'invalid_api_key'
+  },
+  code: 'invalid_api_key',
+  param: null,
+  type: 'invalid_request_error'
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:04:10 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000004219
+  }
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:04:10 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000003815
+  }
+}
+[mem0-service] search failed ApiError: Bad Request
+    at Object.fun [as searchPoints] (D:\NewNeuro\mem0-service\node_modules\@qdrant\openapi-typescript-fetch\dist\cjs\fetcher.js:172:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async QdrantClient.search (D:\NewNeuro\mem0-service\node_modules\@qdrant\js-client-rest\dist\cjs\qdrant-client.js:169:26)
+    at async Qdrant.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:714:21)
+    at async _Memory.search (D:\NewNeuro\mem0-service\node_modules\mem0ai\dist\oss\index.js:4402:22)
+    at async D:\NewNeuro\mem0-service\server.js:85:21 {
+  headers: Headers {
+    'content-encoding': 'br',
+    'content-type': 'application/json',
+    date: 'Thu, 18 Sep 2025 16:04:14 GMT',
+    vary: 'accept-encoding, Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'transfer-encoding': 'chunked'
+  },
+  url: 'https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333/collections/memory_items/points/search',
+  status: 400,
+  statusText: 'Bad Request',
+  data: {
+    status: {
+      error: 'Bad request: Index required but not found for "userId" of one of the following types: [keyword]. Help: Create an index for this key or use a different filter.'
+    },
+    time: 0.000004182
+  }
+}

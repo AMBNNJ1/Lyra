@@ -1,0 +1,2 @@
+[mem0-service] Qdrant store: https://adc09b0a-4b0b-4d8c-af20-be901568280b.europe-west3-0.gcp.cloud.qdrant.io:6333 collection=memory_items
+[mem0-service] listening on 4040

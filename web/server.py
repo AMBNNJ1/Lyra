@@ -1,7 +1,6 @@
 ﻿from __future__ import annotations
 
 import os
-import re
 import threading
 from typing import Dict
 
@@ -42,26 +41,16 @@ def _load_clerk_verifier() -> ClerkVerifier:
 
 load_dotenv()  # ensure QDRANT_URL, QDRANT_API_KEY, OPENAI_BASE_URL, etc.
 
-try:
-    GUEST_MESSAGE_LIMIT = int(os.getenv("GUEST_MESSAGE_LIMIT", "5"))
-except ValueError:
-    GUEST_MESSAGE_LIMIT = 5
-GUEST_MESSAGE_LIMIT = max(0, GUEST_MESSAGE_LIMIT)
-GUEST_ALLOWED_PATHS: Dict[str, bool] = {
-    "/api/chat": True,
-    "/api/chat/stream": True,
-    "/api/tts": False,
-}
-GUEST_USAGE: Dict[str, int] = {}
-GUEST_USAGE_LOCK = threading.Lock()
-
 CLERK = _load_clerk_verifier()
 CLERK_PUBLISHABLE_KEY = os.getenv("CLERK_PUBLISHABLE_KEY")
-if not CLERK_PUBLISHABLE_KEY:
-    raise RuntimeError("CLERK_PUBLISHABLE_KEY env var is not set. Populate it in your environment or .env file.")
-CLERK_JWT_TEMPLATE = os.getenv("CLERK_JWT_TEMPLATE")
+
+GUEST_MESSAGE_LIMIT = int(os.getenv("GUEST_MESSAGE_LIMIT", "5"))
+GUEST_USAGE: Dict[str, int] = {}
+_GUEST_USAGE_LOCK = threading.Lock()
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
+if CLERK_PUBLISHABLE_KEY == "pk_XXX_ADD_REAL_CLERK_PUBLISHABLE_KEY":
+    app.logger.warning("CLERK_PUBLISHABLE_KEY env var missing; using placeholder key for Clerk. Replace with your real publishable key.")
 SESSIONS: Dict[str, WebAgentSession] = {}
 BASE_CONFIG: dict | None = None
 TTS_ENGINE: KokoroTTS | None = None
@@ -141,53 +130,9 @@ def _extract_bearer_token() -> str | None:
     return token
 
 
-def _guest_id_from_headers() -> str | None:
-    raw = request.headers.get("X-Guest-Id", "").strip()
-    if not raw:
-        return None
-    slug = re.sub(r"[^a-zA-Z0-9-]+", "", raw).strip('-')
-    if not slug:
-        return None
-    return slug[:64]
-
-
-def _try_guest_user() -> str | None:
-    if GUEST_MESSAGE_LIMIT <= 0:
-        return None
-    guest_id = _guest_id_from_headers()
-    if not guest_id:
-        return None
-    allow_entry = GUEST_ALLOWED_PATHS.get(request.path)
-    if allow_entry is None:
-        return None
-    increment = bool(allow_entry)
-    with GUEST_USAGE_LOCK:
-        used = GUEST_USAGE.get(guest_id, 0)
-        if increment:
-            if used >= GUEST_MESSAGE_LIMIT:
-                return None
-            used += 1
-            GUEST_USAGE[guest_id] = used
-        else:
-            GUEST_USAGE.setdefault(guest_id, used)
-    used = GUEST_USAGE.get(guest_id, 0)
-    remaining = max(GUEST_MESSAGE_LIMIT - used, 0)
-    user_id = f"guest-{guest_id}"
-    g.clerk_claims = {"sub": user_id, "guest": True}
-    g.clerk_user_id = user_id
-    g.is_guest = True
-    g.guest_messages_used = used
-    g.guest_messages_remaining = remaining
-    g.guest_incremented = increment
-    return user_id
-
-
 def require_clerk_user() -> str:
     token = _extract_bearer_token()
     if not token:
-        guest_user = _try_guest_user()
-        if guest_user:
-            return guest_user
         abort(401, description="Missing Clerk session token")
     try:
         claims = CLERK.verify(token)
@@ -209,35 +154,57 @@ def _before_request() -> None:
 
 @app.route("/api/auth/config", methods=["GET"])
 def auth_config():
-    return jsonify({
-        "publishableKey": CLERK_PUBLISHABLE_KEY,
-        "jwtTemplate": CLERK_JWT_TEMPLATE or None,
-    })
+    return jsonify({"publishableKey": CLERK_PUBLISHABLE_KEY})
 
 @app.route("/api/chat", methods=["POST"])
 def api_chat():
-    raw_uid = require_clerk_user()
-    user_id = _sanitize_user_id(raw_uid)
-    session = _session_for_user(user_id)
     data = request.get_json(force=True, silent=True) or {}
     text = (data.get("message") or "").strip()
-    res = session.chat(text)
-    response = jsonify(res)
-    if getattr(g, "is_guest", False):
-        remaining = getattr(g, "guest_messages_remaining", 0)
-        try:
-            remaining_int = int(remaining)
-        except (TypeError, ValueError):
-            remaining_int = 0
-        response.headers["X-Guest-Remaining"] = str(max(remaining_int, 0))
-    return response
+    token = _extract_bearer_token()
+    guest_id = (request.headers.get("X-Guest-Id") or "").strip()
+
+    if token:
+        raw_uid = require_clerk_user()
+        session = _session_for_user(raw_uid)
+        res = session.chat(text)
+        return jsonify(res)
+
+    if guest_id:
+        guest_key = _sanitize_user_id(guest_id)
+        if not guest_key:
+            abort(401, description="Invalid guest id")
+        with _GUEST_USAGE_LOCK:
+            used = GUEST_USAGE.get(guest_key, 0)
+            if used >= GUEST_MESSAGE_LIMIT:
+                remaining = 0
+                allowed = False
+            else:
+                used += 1
+                GUEST_USAGE[guest_key] = used
+                remaining = max(GUEST_MESSAGE_LIMIT - used, 0)
+                allowed = True
+
+        if not allowed:
+            resp = jsonify({"error": "guest_limit_reached"})
+            resp.status_code = 429
+            resp.headers["X-Guest-Remaining"] = "0"
+            return resp
+
+        session_key = f"guest-{guest_key}"
+        session = _session_for_user(session_key)
+        session.mem.user_id = session_key
+        res = session.chat(text)
+        resp = jsonify(res)
+        resp.headers["X-Guest-Remaining"] = str(remaining)
+        return resp
+
+    abort(401, description="Missing Clerk session token or guest id")
 
 
 @app.route("/api/chat/stream", methods=["POST"])
 def api_chat_stream():
     raw_uid = require_clerk_user()
-    user_id = _sanitize_user_id(raw_uid)
-    session = _session_for_user(user_id)
+    session = _session_for_user(raw_uid)
     data = request.get_json(force=True, silent=True) or {}
     text = (data.get("message") or "").strip()
 
@@ -263,21 +230,13 @@ def api_chat_stream():
         "X-Accel-Buffering": "no",
         "Connection": "keep-alive",
     }
-    if getattr(g, "is_guest", False):
-        remaining = getattr(g, "guest_messages_remaining", 0)
-        try:
-            remaining_int = int(remaining)
-        except (TypeError, ValueError):
-            remaining_int = 0
-        headers["X-Guest-Remaining"] = str(max(remaining_int, 0))
     return Response(gen(), mimetype="text/event-stream", headers=headers)
 
 
 @app.route("/api/continuous", methods=["POST"])
 def api_continuous():
     raw_uid = require_clerk_user()
-    user_id = _sanitize_user_id(raw_uid)
-    session = _session_for_user(user_id)
+    session = _session_for_user(raw_uid)
     data = request.get_json(force=True, silent=True) or {}
     enable = bool(data.get("enable", True))
     if enable:
@@ -290,8 +249,7 @@ def api_continuous():
 @app.route("/api/history", methods=["GET"])
 def api_history():
     raw_uid = require_clerk_user()
-    user_id = _sanitize_user_id(raw_uid)
-    session = _session_for_user(user_id)
+    session = _session_for_user(raw_uid)
     msgs = session.truncated_history()
     return jsonify({"messages": msgs, "count": len(msgs)})
 
@@ -299,8 +257,7 @@ def api_history():
 @app.route("/api/emotion", methods=["GET"])
 def api_emotion():
     raw_uid = require_clerk_user()
-    user_id = _sanitize_user_id(raw_uid)
-    session = _session_for_user(user_id)
+    session = _session_for_user(raw_uid)
     try:
         ee = getattr(session, "ee", None)
         if ee is None:
