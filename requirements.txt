@@ -1,4 +1,4 @@
-requests
+﻿requests
 httpx
 websockets
 flask
@@ -10,3 +10,4 @@ qdrant-client
 # kokoro==0.7.16  # Skipped due to Python 3.13 incompatibility; use alternative TTS
 python-jose[cryptography]
 pytest
+mem0ai>=0.1.117
