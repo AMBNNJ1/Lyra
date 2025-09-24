@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import os
 import threading
@@ -93,6 +93,43 @@ def _session_for_user(user_id: str) -> WebAgentSession:
     return sess
 
 
+def _resolve_session(increment_guest: bool = False):
+    """Return a session for either an authenticated Clerk user or a guest."""
+    token = _extract_bearer_token()
+    guest_id = (request.headers.get("X-Guest-Id") or "").strip()
+
+    if token:
+        raw_uid = require_clerk_user()
+        session = _session_for_user(raw_uid)
+        return session, None, None
+
+    guest_key = _sanitize_user_id(guest_id) if guest_id else "anon"
+    if not guest_key:
+        guest_key = "anon"
+
+    remaining = None
+    if guest_id and increment_guest:
+        with _GUEST_USAGE_LOCK:
+            used = GUEST_USAGE.get(guest_key, 0)
+            if used >= GUEST_MESSAGE_LIMIT:
+                resp = jsonify({"error": "guest_limit_reached"})
+                resp.status_code = 429
+                resp.headers["X-Guest-Remaining"] = "0"
+                return None, None, resp
+            used += 1
+            GUEST_USAGE[guest_key] = used
+            remaining = max(GUEST_MESSAGE_LIMIT - used, 0)
+    elif guest_id:
+        with _GUEST_USAGE_LOCK:
+            used = GUEST_USAGE.get(guest_key, 0)
+            remaining = max(GUEST_MESSAGE_LIMIT - used, 0)
+
+    session_key = f"guest-{guest_key}"
+    session = _session_for_user(session_key)
+    session.mem.user_id = session_key
+    return session, remaining, None
+
+
 def ensure_tts() -> KokoroTTS:
     global TTS_ENGINE
     if TTS_ENGINE is None:
@@ -160,53 +197,30 @@ def auth_config():
 def api_chat():
     data = request.get_json(force=True, silent=True) or {}
     text = (data.get("message") or "").strip()
-    token = _extract_bearer_token()
-    guest_id = (request.headers.get("X-Guest-Id") or "").strip()
 
-    if token:
-        raw_uid = require_clerk_user()
-        session = _session_for_user(raw_uid)
-        res = session.chat(text)
-        return jsonify(res)
+    session, remaining, error_resp = _resolve_session(increment_guest=bool(text))
+    if error_resp is not None:
+        return error_resp
+    if session is None:
+        abort(401, description="Unable to resolve user session")
 
-    if guest_id:
-        guest_key = _sanitize_user_id(guest_id)
-        if not guest_key:
-            abort(401, description="Invalid guest id")
-        with _GUEST_USAGE_LOCK:
-            used = GUEST_USAGE.get(guest_key, 0)
-            if used >= GUEST_MESSAGE_LIMIT:
-                remaining = 0
-                allowed = False
-            else:
-                used += 1
-                GUEST_USAGE[guest_key] = used
-                remaining = max(GUEST_MESSAGE_LIMIT - used, 0)
-                allowed = True
-
-        if not allowed:
-            resp = jsonify({"error": "guest_limit_reached"})
-            resp.status_code = 429
-            resp.headers["X-Guest-Remaining"] = "0"
-            return resp
-
-        session_key = f"guest-{guest_key}"
-        session = _session_for_user(session_key)
-        session.mem.user_id = session_key
-        res = session.chat(text)
-        resp = jsonify(res)
+    res = session.chat(text)
+    resp = jsonify(res)
+    if remaining is not None:
         resp.headers["X-Guest-Remaining"] = str(remaining)
-        return resp
-
-    abort(401, description="Missing Clerk session token or guest id")
+    return resp
 
 
 @app.route("/api/chat/stream", methods=["POST"])
 def api_chat_stream():
-    raw_uid = require_clerk_user()
-    session = _session_for_user(raw_uid)
     data = request.get_json(force=True, silent=True) or {}
     text = (data.get("message") or "").strip()
+
+    session, remaining, error_resp = _resolve_session(increment_guest=bool(text))
+    if error_resp is not None:
+        return error_resp
+    if session is None:
+        abort(401, description="Unable to resolve user session")
 
     def gen():
         try:
@@ -215,28 +229,30 @@ def api_chat_stream():
                     continue
                 payload = {"delta": chunk}
                 import json as _json
-
                 yield f"data: {_json.dumps(payload, ensure_ascii=False)}\n\n"
         except Exception as exc:  # noqa: BLE001
             import json as _json
-
             err = {"delta": f"(error) {exc}"}
             yield f"data: {_json.dumps(err, ensure_ascii=False)}\n\n"
         finally:
             yield "data: [DONE]\n\n"
-
     headers = {
         "Cache-Control": "no-cache, no-transform",
         "X-Accel-Buffering": "no",
         "Connection": "keep-alive",
     }
+    if remaining is not None:
+        headers["X-Guest-Remaining"] = str(remaining)
     return Response(gen(), mimetype="text/event-stream", headers=headers)
 
 
 @app.route("/api/continuous", methods=["POST"])
 def api_continuous():
-    raw_uid = require_clerk_user()
-    session = _session_for_user(raw_uid)
+    session, _, error_resp = _resolve_session()
+    if error_resp is not None:
+        return error_resp
+    if session is None:
+        abort(401, description="Unable to resolve user session")
     data = request.get_json(force=True, silent=True) or {}
     enable = bool(data.get("enable", True))
     if enable:
@@ -248,16 +264,22 @@ def api_continuous():
 
 @app.route("/api/history", methods=["GET"])
 def api_history():
-    raw_uid = require_clerk_user()
-    session = _session_for_user(raw_uid)
+    session, _, error_resp = _resolve_session()
+    if error_resp is not None:
+        return error_resp
+    if session is None:
+        abort(401, description="Unable to resolve user session")
     msgs = session.truncated_history()
     return jsonify({"messages": msgs, "count": len(msgs)})
 
 
 @app.route("/api/emotion", methods=["GET"])
 def api_emotion():
-    raw_uid = require_clerk_user()
-    session = _session_for_user(raw_uid)
+    session, _, error_resp = _resolve_session()
+    if error_resp is not None:
+        return error_resp
+    if session is None:
+        abort(401, description="Unable to resolve user session")
     try:
         ee = getattr(session, "ee", None)
         if ee is None:
@@ -275,7 +297,17 @@ def api_emotion():
 
 @app.route("/api/tts", methods=["POST"])
 def api_tts():
-    require_clerk_user()
+    token = _extract_bearer_token()
+    guest_id = (request.headers.get("X-Guest-Id") or "").strip()
+    if token:
+        require_clerk_user()
+    elif guest_id:
+        guest_key = _sanitize_user_id(guest_id)
+        if not guest_key:
+            abort(401, description="Invalid guest id")
+    else:
+        abort(401, description="Missing Clerk session token or guest id")
+
     data = request.get_json(force=True, silent=True) or {}
     text = (data.get("text") or "").strip()
     voice = (data.get("voice") or os.getenv("KOKORO_VOICE", "af_heart")).strip()

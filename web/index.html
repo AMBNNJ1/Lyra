@@ -231,6 +231,13 @@
     }
 
     async function initClerk(){
+      if (CLERK_LOGIN_DISABLED) {
+        const login = document.getElementById('loginBtn');
+        const userBtn = document.getElementById('clerkUserButton');
+        if (login) login.hidden = true;
+        if (userBtn) userBtn.hidden = true;
+        return;
+      }
       try {
         const res = await fetch('/api/auth/config');
         if (!res.ok) throw new Error('config request failed');
@@ -589,7 +596,14 @@
     }
     window.addEventListener('DOMContentLoaded', async ()=>{
       applySavedTheme();
-      await initClerk();
+      if (!CLERK_LOGIN_DISABLED){
+        await initClerk();
+      } else {
+        const login = document.getElementById('loginBtn');
+        const userBtn = document.getElementById('clerkUserButton');
+        if (login) login.hidden = true;
+        if (userBtn) userBtn.hidden = true;
+      }
       // Ensure avatar video loops and autoplays; show image if video fails
       const vid = document.getElementById('avatarVideo');
       const fallback = document.getElementById('avatarFallback');

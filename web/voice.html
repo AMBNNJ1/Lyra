@@ -45,6 +45,8 @@
     let currentAudio = null;
     let currentUrl = null;
 
+    let introPrompted = false;
+
     const CLERK_LOGIN_DISABLED = true;
     const DEFAULT_GUEST_LIMIT = 5;
     const GUEST_LIMIT = CLERK_LOGIN_DISABLED ? Number.MAX_SAFE_INTEGER : DEFAULT_GUEST_LIMIT;
@@ -175,28 +177,30 @@
       }
     }
 
-    async function sendToAgent(text) {
+    async function sendToAgent(text, opts) {
+      const options = opts || {};
+      const allowEmpty = !!options.allowEmpty;
       const message = (text || '').trim();
-      if (!message) {
+      if (!message && !allowEmpty) {
         setStatus('Try saying something.');
-        return;
+        return '';
       }
       if (awaitingReply) {
         setStatus('Hold on, Lyra is still replying.');
-        return;
+        return '';
       }
       const guestAllowed = canUseGuestQuota();
       if (!guestAllowed && !CLERK_LOGIN_DISABLED) {
         setStatus('Please sign in to keep talking with Lyra.');
         if (noteEl) noteEl.textContent = 'Open the chat to sign in and unlock unlimited voice conversations.';
-        return;
+        return '';
       }
       if (noteEl) {
         noteEl.textContent = '';
       }
       setStatus('Lyra is thinking...');
       awaitingReply = true;
-      let shouldConsumeGuest = false;
+      let shouldConsumeGuest = Boolean(message) && guestAllowed;
       let guestOverrideCount = null;
       try {
         const headers = { 'Content-Type': 'application/json' };
@@ -216,7 +220,7 @@
             setStatus('Voice mode is temporarily unavailable.');
             if (noteEl) noteEl.textContent = 'Server rejected the request without Clerk authentication.';
           }
-          return;
+          return '';
         }
         if (resp.status === 402) {
           if (!CLERK_LOGIN_DISABLED) {
@@ -224,30 +228,37 @@
           } else {
             setStatus('Voice mode is temporarily unavailable.');
           }
-          return;
+          return '';
         }
         if (!resp.ok) {
           throw new Error('request_failed');
         }
-        shouldConsumeGuest = guestAllowed;
-        const remainingHeader = resp.headers.get('X-Guest-Remaining');
-        if (remainingHeader !== null) {
-          const remainingNum = Number(remainingHeader);
-          if (!Number.isNaN(remainingNum)) {
-            guestOverrideCount = Math.min(GUEST_LIMIT, Math.max(0, Math.round(GUEST_LIMIT - remainingNum)));
+        if (shouldConsumeGuest) {
+          const remainingHeader = resp.headers.get('X-Guest-Remaining');
+          if (remainingHeader !== null) {
+            const remainingNum = Number(remainingHeader);
+            if (!Number.isNaN(remainingNum)) {
+              guestOverrideCount = Math.min(GUEST_LIMIT, Math.max(0, Math.round(GUEST_LIMIT - remainingNum)));
+            }
           }
         }
         const data = await resp.json();
         const reply = (data && data.reply) || '';
-        setStatus('Lyra is speaking...');
-        await speakText(reply);
-        setStatus('Tap the button to speak again');
+        if (reply) {
+          setStatus('Lyra is speaking...');
+          await speakText(reply);
+          setStatus('Tap the button to speak again');
+        } else if (allowEmpty) {
+          setStatus('Lyra is ready to listen.');
+        }
+        return reply;
       } catch (err) {
         console.error('sendToAgent error', err);
         setStatus('Something went wrong. Please try again.');
         if (noteEl) {
           noteEl.textContent = 'Network error - try again in a moment.';
         }
+        return '';
       } finally {
         awaitingReply = false;
         if (shouldConsumeGuest) consumeGuestQuota(guestOverrideCount);
@@ -279,7 +290,30 @@
       recognition.onerror = (event) => {
         console.error('speech error', event);
         setListening(false);
-        setStatus('Mic error. Check permissions and try again.');
+        const errCode = (event && event.error) || '';
+        switch (errCode) {
+          case 'no-speech':
+            setStatus('No speech detected. Try again.');
+            if (noteEl) noteEl.textContent = 'We could not hear anything. Speak closer to the microphone.';
+            break;
+          case 'audio-capture':
+            setStatus('Microphone not found.');
+            if (noteEl) noteEl.textContent = 'Attach a microphone or pick a different input in your browser settings.';
+            break;
+          case 'not-allowed':
+          case 'service-not-allowed':
+            setStatus('Microphone permission blocked.');
+            if (noteEl) noteEl.textContent = 'Allow microphone access in your browser to keep using voice mode.';
+            break;
+          case 'aborted':
+            setStatus('Listening cancelled. Tap the button to try again.');
+            break;
+          default:
+            setStatus('Mic error. Check permissions and try again.');
+            if (noteEl && !noteEl.textContent) {
+              noteEl.textContent = 'If the issue persists, reload the page.';
+            }
+        }
       };
       recognition.onend = () => {
         setListening(false);
@@ -302,10 +336,22 @@
           setStatus('I did not catch that. Try again.');
         }
       };
-      micBtn.addEventListener('click', () => {
+      micBtn.addEventListener('click', async () => {
         if (!recognition) return;
+        if (awaitingReply) {
+          setStatus('Hold on, Lyra is still replying.');
+          return;
+        }
         try {
           if (!listening) {
+            if (!introPrompted) {
+              try {
+                await sendToAgent('', { allowEmpty: true });
+                introPrompted = true;
+              } catch (err) {
+                console.error('intro send error', err);
+              }
+            }
             recognition.start();
           } else {
             recognition.stop();
