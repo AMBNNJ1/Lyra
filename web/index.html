@@ -19,7 +19,9 @@
     let clerkTokenTemplate = null;
     let clerkSignInUnmount = null;
     let clerkUserButtonUnmount = null;
-    const GUEST_LIMIT = 5;
+    const CLERK_LOGIN_DISABLED = true; // temporary guest-only mode
+    const DEFAULT_GUEST_LIMIT = 5;
+    const GUEST_LIMIT = CLERK_LOGIN_DISABLED ? Number.MAX_SAFE_INTEGER : DEFAULT_GUEST_LIMIT;
     let guestId = null;
     let guestMessageCount = 0;
     (function initGuestQuota(){
@@ -45,6 +47,7 @@
     })();
 
     function canUseGuestQuota(){
+      if (CLERK_LOGIN_DISABLED) return true;
       return !authToken && guestMessageCount < GUEST_LIMIT;
     }
 
@@ -62,6 +65,7 @@
     }
 
     function consumeGuestQuota(nextCount){
+      if (CLERK_LOGIN_DISABLED) return;
       if (typeof nextCount === 'number' && Number.isFinite(nextCount)) {
         guestMessageCount = Math.max(guestMessageCount, nextCount);
       } else {
@@ -76,7 +80,7 @@
             root.innerHTML = '<p class="error">Please sign in to keep chatting with Lyra.</p>';
           }
         }
-        setTimeout(() => { if (!authToken) openClerkModal(); }, 50);
+        setTimeout(() => { if (!authToken && !CLERK_LOGIN_DISABLED) openClerkModal(); }, 50);
       }
     }
 
@@ -117,7 +121,7 @@
       else applyGuestHeaders(headers);
       const r = await fetch(path, { method:'POST', headers, body: JSON.stringify(body||{}) });
       if(r.status === 401){
-        if (!canUseGuestQuota()) openClerkModal();
+        if (!canUseGuestQuota() && !CLERK_LOGIN_DISABLED) openClerkModal();
         throw new Error('unauthorized');
       }
       if(!r.ok) throw new Error('request failed');
@@ -128,7 +132,7 @@
       if (!authToken) applyGuestHeaders(headers);
       const r = await fetch(path, { headers });
       if(r.status === 401){
-        if (!canUseGuestQuota()) openClerkModal();
+        if (!canUseGuestQuota() && !CLERK_LOGIN_DISABLED) openClerkModal();
         throw new Error('unauthorized');
       }
       if(!r.ok) throw new Error('request failed');
@@ -169,6 +173,7 @@
       el.style.height = next + 'px';
     }
     function openClerkModal(){
+      if (CLERK_LOGIN_DISABLED) return;
       const modal = document.getElementById('authModal');
       if (!modal) return;
       const root = document.getElementById('clerkSignIn');
@@ -415,7 +420,7 @@
         const name = (d && d.primary) ? String(d.primary) : 'neutral';
         const inten = Math.max(0, Math.min(1, Number(d?.intensity||0)));
         const pct = Math.round(inten*100);
-        const EMOJI = {joy:'joy', distress:'distress', hope:'hope', fear:'fear', relief:'relief', disappointment:'disappointed', gratitude:'grateful', anger:'angry', pride:'proud', shame:'remorse', frustration:'frustrated', admiration:'admire', reproach:'concern', surprise:'surprised', neutral:'neutral'};
+        const EMOJI = {joy:'😊', distress:'😣', hope:'🤞', fear:'😨', relief:'😌', disappointment:'😞', gratitude:'🙏', anger:'😠', pride:'😎', shame:'😳', frustration:'😤', admiration:'🤩', reproach:'🤨', surprise:'😲', neutral:'😐'};
         const COLOR = {joy:'#2bd576', distress:'#ff4d4f', hope:'#6aa9ff', fear:'#ff7f50', relief:'#7ee0ff', disappointment:'#b0b6c0', gratitude:'#ffd166', anger:'#ff4d4f', pride:'#7c5cff', shame:'#ff9ece', frustration:'#ff8a3d', admiration:'#6aa9ff', reproach:'#ff6b6b', surprise:'#00e0ff', neutral:'#98a2b3'};
         document.getElementById('emEmoji').textContent = EMOJI[name] || EMOJI.neutral;
         document.getElementById('emName').textContent = name;
@@ -444,7 +449,7 @@
     }
     async function send(){
       const guestAllowed = canUseGuestQuota();
-      if (!authToken && !guestAllowed) { openClerkModal(); return; }
+      if (!authToken && !guestAllowed && !CLERK_LOGIN_DISABLED) { openClerkModal(); return; }
       const ta = document.getElementById('ta');
       const sendBtn = document.getElementById('send');
       const txt = ta.value.trim();
@@ -472,8 +477,11 @@
         else if (usedGuest) applyGuestHeaders(headers);
         const res = await fetch('/api/chat/stream', { method:'POST', headers, body: JSON.stringify({message: txt}) });
         if(res.status===401){
-          openClerkModal();
-          throw new Error('Sign in to continue');
+          if (!CLERK_LOGIN_DISABLED) {
+            openClerkModal();
+            throw new Error('Sign in to continue');
+          }
+          throw new Error('unauthorized');
         }
         if (usedGuest) {
           guestShouldConsume = true;
@@ -532,7 +540,7 @@
     }
 
     async function toggleContinuous(cb){
-      if (!authToken) { cb.checked = false; openClerkModal(); return; }
+      if (!authToken && !CLERK_LOGIN_DISABLED) { cb.checked = false; openClerkModal(); return; }
       const on = cb.checked;
       try{ await post('/api/continuous', { enable: on }); }catch{}
       // Start/stop backend history polling to surface proactive messages
@@ -643,7 +651,13 @@
       voiceBtn?.addEventListener('click', ()=>{ window.location.href = '/voice'; });
       document.getElementById('theme').addEventListener('click', toggleTheme);
       const loginBtn = document.getElementById('loginBtn');
-      loginBtn?.addEventListener('click', () => { openClerkModal(); });
+      if (loginBtn){
+        if (CLERK_LOGIN_DISABLED) {
+          loginBtn.hidden = true;
+        } else {
+          loginBtn.addEventListener('click', () => { openClerkModal(); });
+        }
+      }
       const authClose = document.getElementById('authClose');
       authClose?.addEventListener('click', () => { const m = document.getElementById('authModal'); if (m) m.hidden = true; });
       // Auto-scroll whenever chat content changes (including streaming)
@@ -683,7 +697,7 @@
             </div>
             <div id="emotionCard" class="emotion-card" aria-live="polite">
               <div class="em-head">
-                <span id="emEmoji" class="em-emoji">neutral</span>
+                <span id="emEmoji" class="em-emoji">😐</span>
                 <span id="emName" class="em-name">neutral</span>
                 <span id="emStrength" class="em-strength">0%</span>
               </div>

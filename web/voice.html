@@ -7,32 +7,25 @@
   <link rel="stylesheet" href="/voice.css" />
 </head>
 <body>
-  <div class="call-shell">
-    <header class="call-header">
-      <button id="backBtn" type="button" class="header-btn">
-        <span class="icon" aria-hidden="true">←</span>
-        <span class="label">Back to Chat</span>
-      </button>
-    </header>
-    <main class="call-main">
-      <section class="call-stage">
-        <div class="avatar-wrapper">
-          <div class="avatar-halo" id="avatarRing">
-            <img src="/assets/nova_avatar.jpg" alt="Lyra avatar" />
-          </div>
-          <div class="call-name">Lyra</div>
-          <p class="call-status" id="voiceStatus">Tap the mic to speak</p>
-        </div>
-      </section>
-    </main>
-    <footer class="call-footer">
-      <button id="voiceMic" class="mic-button" type="button" aria-pressed="false">
-        <span class="mic-icon" aria-hidden="true">🎙️</span>
-        <span class="mic-label" id="micLabel">Tap to Speak</span>
+  <header class="voice-header">
+    <button id="backBtn" type="button" class="voice-link">
+      <span class="icon" aria-hidden="true">&larr;</span>
+      <span class="label">Back to Chat</span>
+    </button>
+  </header>
+  <main class="voice-main">
+    <div class="voice-panel">
+      <div class="voice-avatar" id="avatarRing">
+        <img src="/assets/nova_avatar.jpg" alt="Lyra avatar" />
+      </div>
+      <div class="voice-name">Lyra</div>
+      <p class="voice-status" id="voiceStatus">Tap the button to speak</p>
+      <button id="voiceMic" class="voice-action" type="button" aria-pressed="false">
+        <span class="voice-action-label" id="micLabel">Tap to Speak</span>
       </button>
       <div class="voice-note" id="voiceNote"></div>
-    </footer>
-  </div>
+    </div>
+  </main>
   <script>
   (() => {
     const ring = document.getElementById('avatarRing');
@@ -52,7 +45,9 @@
     let currentAudio = null;
     let currentUrl = null;
 
-    const GUEST_LIMIT = 5;
+    const CLERK_LOGIN_DISABLED = true;
+    const DEFAULT_GUEST_LIMIT = 5;
+    const GUEST_LIMIT = CLERK_LOGIN_DISABLED ? Number.MAX_SAFE_INTEGER : DEFAULT_GUEST_LIMIT;
     let guestId = null;
     let guestMessageCount = 0;
     (function initGuestQuota(){
@@ -75,6 +70,7 @@
     })();
 
     function canUseGuestQuota(){
+      if (CLERK_LOGIN_DISABLED) return true;
       return guestMessageCount < GUEST_LIMIT;
     }
 
@@ -92,6 +88,7 @@
     }
 
     function consumeGuestQuota(nextCount){
+      if (CLERK_LOGIN_DISABLED) return;
       if (typeof nextCount === 'number' && Number.isFinite(nextCount)) {
         guestMessageCount = Math.max(guestMessageCount, nextCount);
       } else {
@@ -107,7 +104,7 @@
       }
     }
 
-    if (!canUseGuestQuota()){
+    if (!canUseGuestQuota() && !CLERK_LOGIN_DISABLED){
       setStatus('Please sign in to keep talking with Lyra.');
       if (noteEl) noteEl.textContent = 'Open the chat to sign in and unlock unlimited voice conversations.';
       micBtn.disabled = true;
@@ -189,7 +186,7 @@
         return;
       }
       const guestAllowed = canUseGuestQuota();
-      if (!guestAllowed) {
+      if (!guestAllowed && !CLERK_LOGIN_DISABLED) {
         setStatus('Please sign in to keep talking with Lyra.');
         if (noteEl) noteEl.textContent = 'Open the chat to sign in and unlock unlimited voice conversations.';
         return;
@@ -210,14 +207,23 @@
           body: JSON.stringify({ message })
         });
         if (resp.status === 401) {
-          setStatus('Please sign in to keep talking with Lyra.');
-          if (noteEl) noteEl.textContent = 'Open the chat to sign in and unlock unlimited voice conversations.';
-          micBtn.disabled = true;
-          micBtn.classList.add('is-disabled');
+          if (!CLERK_LOGIN_DISABLED) {
+            setStatus('Please sign in to keep talking with Lyra.');
+            if (noteEl) noteEl.textContent = 'Open the chat to sign in and unlock unlimited voice conversations.';
+            micBtn.disabled = true;
+            micBtn.classList.add('is-disabled');
+          } else {
+            setStatus('Voice mode is temporarily unavailable.');
+            if (noteEl) noteEl.textContent = 'Server rejected the request without Clerk authentication.';
+          }
           return;
         }
         if (resp.status === 402) {
-          setStatus('Sign in to continue chatting.');
+          if (!CLERK_LOGIN_DISABLED) {
+            setStatus('Sign in to continue chatting.');
+          } else {
+            setStatus('Voice mode is temporarily unavailable.');
+          }
           return;
         }
         if (!resp.ok) {
@@ -235,7 +241,7 @@
         const reply = (data && data.reply) || '';
         setStatus('Lyra is speaking...');
         await speakText(reply);
-        setStatus('Tap the mic to speak again');
+        setStatus('Tap the button to speak again');
       } catch (err) {
         console.error('sendToAgent error', err);
         setStatus('Something went wrong. Please try again.');
@@ -268,7 +274,7 @@
 
       recognition.onstart = () => {
         setListening(true);
-        setStatus('Listening…');
+        setStatus('Listening...');
       };
       recognition.onerror = (event) => {
         console.error('speech error', event);
@@ -278,7 +284,7 @@
       recognition.onend = () => {
         setListening(false);
         if (!awaitingReply) {
-          setStatus('Tap the mic to speak');
+          setStatus('Tap the button to speak');
         }
       };
       recognition.onresult = (event) => {
