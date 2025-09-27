@@ -388,62 +388,30 @@
         emoPoll = setInterval(fetchEmotion, 1500);
       }
     }
+
     function startTalking(){
       const vid = document.getElementById('avatarVideo');
-      const fallback = document.getElementById('avatarFallback');
-      if(!vid) return;
-      try{
-        if (vid.getAttribute('data-state') === 'talking') return;
-        vid.setAttribute('data-state', 'talking');
-        vid.loop = true; // keep lips moving if response is long
-        vid.src = '/assets/nova_talking.mp4';
-        const play = () => { vid.play().catch(()=>{}); };
-        vid.addEventListener('canplay', play, { once: true });
-        if (fallback) fallback.hidden = true;
-        vid.addEventListener('error', () => { if (fallback) fallback.hidden = false; }, { once: true });
-        if (vid.readyState >= 2) play();
-      }catch{}
+      if (!vid) return;
+      vid.removeAttribute('data-state');
+      vid.loop = true;
+      if (!vid.currentSrc.includes('nova_video.mp4')) {
+        vid.src = '/assets/nova_video.mp4';
+        vid.load();
+      }
+      try { vid.play().catch(() => {}); } catch {}
     }
     function stopTalking(){
       const vid = document.getElementById('avatarVideo');
-      const fallback = document.getElementById('avatarFallback');
-      if(!vid) return;
-      try{
-        vid.pause();
-        vid.removeAttribute('data-state');
-        // revert to idle loop
-        vid.loop = true;
-        vid.src = '/assets/nova_hero.mp4';
-        const playIdle = () => { vid.play().catch(()=>{}); };
-        vid.addEventListener('canplay', playIdle, { once: true });
-        if (fallback) fallback.hidden = true;
-        if (vid.readyState >= 2) playIdle();
-      }catch{}
+      if (!vid) return;
+      vid.removeAttribute('data-state');
+      vid.loop = true;
+      if (!vid.currentSrc.includes('nova_video.mp4')) {
+        vid.src = '/assets/nova_video.mp4';
+        vid.load();
+      }
+      try { vid.play().catch(() => {}); } catch {}
     }
-    function updateEmotionUI(d){
-      try{
-        const card = document.getElementById('emotionCard');
-        if(!card) return;
-        const name = (d && d.primary) ? String(d.primary) : 'neutral';
-        const inten = Math.max(0, Math.min(1, Number(d?.intensity||0)));
-        const pct = Math.round(inten*100);
-        const EMOJI = {joy:'😊', distress:'😣', hope:'🤞', fear:'😨', relief:'😌', disappointment:'😞', gratitude:'🙏', anger:'😠', pride:'😎', shame:'😳', frustration:'😤', admiration:'🤩', reproach:'🤨', surprise:'😲', neutral:'😐'};
-        const COLOR = {joy:'#2bd576', distress:'#ff4d4f', hope:'#6aa9ff', fear:'#ff7f50', relief:'#7ee0ff', disappointment:'#b0b6c0', gratitude:'#ffd166', anger:'#ff4d4f', pride:'#7c5cff', shame:'#ff9ece', frustration:'#ff8a3d', admiration:'#6aa9ff', reproach:'#ff6b6b', surprise:'#00e0ff', neutral:'#98a2b3'};
-        document.getElementById('emEmoji').textContent = EMOJI[name] || EMOJI.neutral;
-        document.getElementById('emName').textContent = name;
-        document.getElementById('emStrength').textContent = pct + '%';
-        const fill = document.getElementById('emFill');
-        if (fill){ fill.style.width = pct + '%'; }
-        const color = COLOR[name] || COLOR.neutral;
-        card.style.setProperty('--emo-color', color);
-        const lv = d && d.levels ? d.levels : {};
-        const tops = Object.entries(lv).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>`<span class=\"chip\">${k}</span>`).join('');
-        const tags = document.getElementById('emTags');
-        if (tags) tags.innerHTML = tops;
-        const meter = document.querySelector('.em-meter');
-        meter?.setAttribute('aria-valuenow', String(pct));
-      }catch{}
-    }
+
     async function fetchEmotion(){
       if (!authToken) return;
       try{
@@ -604,19 +572,21 @@
         if (login) login.hidden = true;
         if (userBtn) userBtn.hidden = true;
       }
-      // Ensure avatar video loops and autoplays; show image if video fails
+      // Ensure avatar video loops and autoplays; recover by reloading if playback fails
       const vid = document.getElementById('avatarVideo');
-      const fallback = document.getElementById('avatarFallback');
       if (vid) {
         try {
           vid.muted = true; vid.loop = true;
-          const start = () => { if (fallback) fallback.hidden = true; vid.play().catch(()=>{}); };
+          const start = () => { vid.play().catch(()=>{}); };
           vid.addEventListener('canplay', start, { once: true });
           vid.addEventListener('loadeddata', start, { once: true });
-          vid.addEventListener('playing', () => { if (fallback) fallback.hidden = true; });
-          vid.addEventListener('error', () => { if (fallback) fallback.hidden = false; });
+          vid.addEventListener('error', () => {
+            vid.removeAttribute('data-state');
+            vid.loop = true;
+            vid.src = '/assets/nova_video.mp4';
+            vid.play().catch(()=>{});
+          });
           if (vid.readyState >= 2) start();
-          setTimeout(() => { if ((vid.readyState < 2 || vid.paused) && fallback) fallback.hidden = false; }, 1200);
         } catch {}
       }
       const ta = document.getElementById('ta');
@@ -706,8 +676,7 @@
         <aside class="avatar-pane">
           <div class="unity-wrap">
             <div id="avatarFrame" class="avatar-frame">
-              <video id="avatarVideo" class="avatar-video" src="/assets/nova_hero.mp4" autoplay muted loop playsinline preload="auto" aria-label="Avatar video"></video>
-              <img id="avatarFallback" class="avatar-photo" src="/assets/nova_avatar.jpg" alt="Avatar" hidden />
+              <video id="avatarVideo" class="avatar-video" src="/assets/nova_video.mp4" autoplay muted loop playsinline preload="auto" aria-label="Avatar video"></video>
             </div>
             <div id="emotionCard" class="emotion-card" aria-live="polite">
               <div class="em-head">

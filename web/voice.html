@@ -16,7 +16,7 @@
   <main class="voice-main">
     <div class="voice-panel">
       <div class="voice-avatar" id="avatarRing">
-        <img src="/assets/nova_avatar.jpg" alt="Lyra avatar" />
+        <video id="voiceVideo" class="voice-video" src="/assets/nova_video.mp4" autoplay muted loop playsinline preload="auto" aria-label="Lyra avatar video"></video>
       </div>
       <div class="voice-name">Lyra</div>
       <p class="voice-status" id="voiceStatus">Tap the button to speak</p>
@@ -34,6 +34,7 @@
     const backBtn = document.getElementById('backBtn');
     const noteEl = document.getElementById('voiceNote');
     const micLabel = document.getElementById('micLabel');
+    const avatarVideo = document.getElementById('voiceVideo');
     if (!ring || !statusEl || !micBtn) {
       console.error('Voice mode UI missing required elements.');
       return;
@@ -47,136 +48,34 @@
 
     let introPrompted = false;
 
-    const CLERK_LOGIN_DISABLED = true;
-    const DEFAULT_GUEST_LIMIT = 5;
-    const GUEST_LIMIT = CLERK_LOGIN_DISABLED ? Number.MAX_SAFE_INTEGER : DEFAULT_GUEST_LIMIT;
-    let guestId = null;
-    let guestMessageCount = 0;
-    (function initGuestQuota(){
-      try {
-        const storedId = localStorage.getItem('lyraGuestId');
-        if (storedId) {
-          guestId = storedId;
-        } else {
-          guestId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
-          try { localStorage.setItem('lyraGuestId', guestId); } catch {}
-        }
-        const cachedCount = Number(localStorage.getItem('lyraGuestMessageCount') || '0');
-        if (Number.isFinite(cachedCount) && cachedCount > 0) {
-          guestMessageCount = Math.min(GUEST_LIMIT, cachedCount);
-        }
-      } catch {
-        guestId = guestId || ((typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2));
-        guestMessageCount = 0;
+    function ensureAvatarVideoReady() {
+      if (!avatarVideo) return;
+      avatarVideo.addEventListener('error', () => {
+        avatarVideo.dataset.state = 'idle';
+        avatarVideo.loop = true;
+        avatarVideo.src = '/assets/nova_video.mp4';
+        avatarVideo.play().catch(() => {});
+      });
+      const playIdle = () => {
+        avatarVideo.play().catch(() => {});
+      };
+      if (!avatarVideo.dataset.state) {
+        avatarVideo.dataset.state = 'idle';
       }
-    })();
-
-    function canUseGuestQuota(){
-      if (CLERK_LOGIN_DISABLED) return true;
-      return guestMessageCount < GUEST_LIMIT;
+      if (avatarVideo.readyState >= 2) playIdle();
+      else avatarVideo.addEventListener('canplay', playIdle, { once: true });
     }
 
-    function ensureGuestIdentifier(){
-      if (!guestId){
-        guestId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
-        try { localStorage.setItem('lyraGuestId', guestId); } catch {}
+    function setAvatarTalking(on) {
+      if (!avatarVideo) return;
+      avatarVideo.dataset.state = 'idle';
+      avatarVideo.loop = true;
+      if (!avatarVideo.currentSrc.includes('nova_video.mp4')) {
+        avatarVideo.src = '/assets/nova_video.mp4';
+        avatarVideo.load();
       }
-      return guestId;
+      try { avatarVideo.play().catch(() => {}); } catch {}
     }
-
-    function applyGuestHeaders(headers){
-      const id = ensureGuestIdentifier();
-      if (id) headers['X-Guest-Id'] = id;
-    }
-
-    function consumeGuestQuota(nextCount){
-      if (CLERK_LOGIN_DISABLED) return;
-      if (typeof nextCount === 'number' && Number.isFinite(nextCount)) {
-        guestMessageCount = Math.max(guestMessageCount, nextCount);
-      } else {
-        guestMessageCount += 1;
-      }
-      if (guestMessageCount > GUEST_LIMIT) guestMessageCount = GUEST_LIMIT;
-      try { localStorage.setItem('lyraGuestMessageCount', String(guestMessageCount)); } catch {}
-      if (guestMessageCount >= GUEST_LIMIT){
-        setStatus('Please sign in to keep talking with Lyra.');
-        if (noteEl) noteEl.textContent = 'Open the chat to sign in and unlock unlimited voice conversations.';
-        micBtn.disabled = true;
-        micBtn.classList.add('is-disabled');
-      }
-    }
-
-    if (!canUseGuestQuota() && !CLERK_LOGIN_DISABLED){
-      setStatus('Please sign in to keep talking with Lyra.');
-      if (noteEl) noteEl.textContent = 'Open the chat to sign in and unlock unlimited voice conversations.';
-      micBtn.disabled = true;
-      micBtn.classList.add('is-disabled');
-    }
-
-    function setStatus(msg) {
-      statusEl.textContent = msg || '';
-    }
-
-    function setListening(on) {
-      listening = on;
-      ring.classList.toggle('listening', !!on);
-      micBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-      if (micLabel) {
-        micLabel.textContent = on ? 'Mute Mic' : 'Tap to Speak';
-      } else {
-        micBtn.textContent = on ? 'Mute Mic' : 'Tap to Speak';
-      }
-    }
-
-    function setSpeaking(on) {
-      ring.classList.toggle('speaking', !!on);
-    }
-
-    function cleanupAudio() {
-      if (currentAudio) {
-        try { currentAudio.pause(); } catch (err) {}
-      }
-      if (currentUrl) {
-        try { URL.revokeObjectURL(currentUrl); } catch (err) {}
-      }
-      currentAudio = null;
-      currentUrl = null;
-      setSpeaking(false);
-    }
-
-    async function speakText(text) {
-      const phrase = (text || '').trim();
-      if (!phrase) return;
-      try {
-        const headers = { 'Content-Type': 'application/json' };
-        applyGuestHeaders(headers);
-        const resp = await fetch('/api/tts', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ text: phrase })
-        });
-        if (!resp.ok) {
-          throw new Error('tts_failed');
-        }
-        const blob = await resp.blob();
-        const url = URL.createObjectURL(blob);
-        cleanupAudio();
-        currentUrl = url;
-        currentAudio = new Audio(url);
-        currentAudio.onended = () => cleanupAudio();
-        currentAudio.onerror = () => cleanupAudio();
-        setSpeaking(true);
-        await currentAudio.play().catch((err) => {
-          console.error('Audio play rejected', err);
-          cleanupAudio();
-        });
-      } catch (err) {
-        console.error('speakText error', err);
-        setStatus('Unable to play audio.');
-        cleanupAudio();
-      }
-    }
-
     async function sendToAgent(text, opts) {
       const options = opts || {};
       const allowEmpty = !!options.allowEmpty;
@@ -200,6 +99,7 @@
       }
       setStatus('Lyra is thinking...');
       awaitingReply = true;
+      setAvatarTalking(false);
       let shouldConsumeGuest = Boolean(message) && guestAllowed;
       let guestOverrideCount = null;
       try {
@@ -248,8 +148,9 @@
           setStatus('Lyra is speaking...');
           await speakText(reply);
           setStatus('Tap the button to speak again');
-        } else if (allowEmpty) {
+        } else {
           setStatus('Lyra is ready to listen.');
+          setAvatarTalking(false);
         }
         return reply;
       } catch (err) {
@@ -261,6 +162,7 @@
         return '';
       } finally {
         awaitingReply = false;
+        if (!currentAudio) setAvatarTalking(false);
         if (shouldConsumeGuest) consumeGuestQuota(guestOverrideCount);
       }
     }

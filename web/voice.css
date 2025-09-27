@@ -93,7 +93,7 @@ body {
   opacity: 0.6;
 }
 
-.voice-avatar img {
+.voice-avatar video {
   width: 72%;
   height: 72%;
   border-radius: 50%;
@@ -194,7 +194,7 @@ body {
     height: 190px;
   }
 
-  .voice-avatar img {
+  .voice-avatar video {
     width: 76%;
     height: 76%;
   }
