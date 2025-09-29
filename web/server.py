@@ -352,6 +352,13 @@ def voice_mode():
     return send_from_directory(str(web_dir), "voice.html")
 
 
+@app.route("/favicon.ico")
+def favicon():
+    """Serve favicon to avoid 404 errors"""
+    web_dir = WEB_DIR
+    return send_from_directory(str(web_dir / "lyra"), "favicon.svg", mimetype="image/svg+xml")
+
+
 @app.route("/web/<path:path>")
 def web_assets(path: str):
     web_dir = WEB_DIR

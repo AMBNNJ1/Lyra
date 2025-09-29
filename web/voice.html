@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Lyra Voice Mode</title>
+  <link rel="icon" href="/lyra/favicon.svg" />
   <link rel="stylesheet" href="/voice.css" />
 </head>
 <body>
@@ -16,7 +17,7 @@
   <main class="voice-main">
     <div class="voice-panel">
       <div class="voice-avatar" id="avatarRing">
-        <video id="voiceVideo" class="voice-video" src="/assets/nova_video.mp4" autoplay muted loop playsinline preload="auto" aria-label="Lyra avatar video"></video>
+        <img id="voiceVideo" class="voice-video" src="/assets/nova_avatar.jpg" alt="Lyra avatar" />
       </div>
       <div class="voice-name">Lyra</div>
       <p class="voice-status" id="voiceStatus">Tap the button to speak</p>
@@ -28,6 +29,64 @@
   </main>
   <script>
   (() => {
+    // Guest quota management
+    const CLERK_LOGIN_DISABLED = true;
+    const DEFAULT_GUEST_LIMIT = 5;
+    const GUEST_LIMIT = CLERK_LOGIN_DISABLED ? Number.MAX_SAFE_INTEGER : DEFAULT_GUEST_LIMIT;
+    let guestId = null;
+    let guestMessageCount = 0;
+
+    (function initGuestQuota(){
+      try {
+        const storedId = localStorage.getItem('lyraGuestId');
+        if (storedId) {
+          guestId = storedId;
+        } else {
+          const generated = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+          guestId = generated;
+          try { localStorage.setItem('lyraGuestId', guestId); } catch {}
+        }
+        const cachedCount = Number(localStorage.getItem('lyraGuestMessageCount') || '0');
+        if (Number.isFinite(cachedCount) && cachedCount > 0) {
+          guestMessageCount = Math.min(GUEST_LIMIT, cachedCount);
+        } else {
+          guestMessageCount = 0;
+        }
+      } catch {
+        guestId = guestId || ((typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+        guestMessageCount = 0;
+      }
+    })();
+
+    function canUseGuestQuota(){
+      if (CLERK_LOGIN_DISABLED) return true;
+      return guestMessageCount < GUEST_LIMIT;
+    }
+
+    function ensureGuestIdentifier(){
+      if (!guestId){
+        guestId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+        try { localStorage.setItem('lyraGuestId', guestId); } catch {}
+      }
+      return guestId;
+    }
+
+    function applyGuestHeaders(headers){
+      const id = ensureGuestIdentifier();
+      if (id) headers['X-Guest-Id'] = id;
+    }
+
+    function consumeGuestQuota(nextCount){
+      if (CLERK_LOGIN_DISABLED) return;
+      if (typeof nextCount === 'number' && Number.isFinite(nextCount)) {
+        guestMessageCount = Math.max(guestMessageCount, nextCount);
+      } else {
+        guestMessageCount += 1;
+      }
+      if (guestMessageCount > GUEST_LIMIT) guestMessageCount = GUEST_LIMIT;
+      try { localStorage.setItem('lyraGuestMessageCount', String(guestMessageCount)); } catch {}
+    }
+
     const ring = document.getElementById('avatarRing');
     const statusEl = document.getElementById('voiceStatus');
     const micBtn = document.getElementById('voiceMic');
@@ -48,33 +107,75 @@
 
     let introPrompted = false;
 
+    function setStatus(msg) {
+      if (statusEl) statusEl.textContent = msg;
+    }
+
+    function setListening(isListening) {
+      listening = isListening;
+      micBtn.setAttribute('aria-pressed', String(isListening));
+      if (isListening) {
+        ring.classList.add('listening');
+        ring.classList.remove('speaking');
+      } else {
+        ring.classList.remove('listening');
+      }
+    }
+
+    function cleanupAudio() {
+      if (currentAudio) {
+        try {
+          currentAudio.pause();
+          currentAudio.currentTime = 0;
+        } catch {}
+        currentAudio = null;
+      }
+      if (currentUrl) {
+        try { URL.revokeObjectURL(currentUrl); } catch {}
+        currentUrl = null;
+      }
+    }
+
+    async function speakText(text) {
+      cleanupAudio();
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        applyGuestHeaders(headers);
+        const response = await fetch('/api/tts', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ text })
+        });
+        if (!response.ok) throw new Error('TTS request failed');
+        const blob = await response.blob();
+        currentUrl = URL.createObjectURL(blob);
+        currentAudio = new Audio(currentUrl);
+        ring.classList.add('speaking');
+        currentAudio.addEventListener('ended', () => {
+          ring.classList.remove('speaking');
+          setAvatarTalking(false);
+          currentAudio = null;
+        });
+        await currentAudio.play();
+      } catch (err) {
+        console.error('TTS error', err);
+        ring.classList.remove('speaking');
+        setAvatarTalking(false);
+      }
+    }
+
     function ensureAvatarVideoReady() {
       if (!avatarVideo) return;
-      avatarVideo.addEventListener('error', () => {
-        avatarVideo.dataset.state = 'idle';
-        avatarVideo.loop = true;
-        avatarVideo.src = '/assets/nova_video.mp4';
-        avatarVideo.play().catch(() => {});
-      });
-      const playIdle = () => {
-        avatarVideo.play().catch(() => {});
-      };
+      // Image doesn't need special initialization
       if (!avatarVideo.dataset.state) {
         avatarVideo.dataset.state = 'idle';
       }
-      if (avatarVideo.readyState >= 2) playIdle();
-      else avatarVideo.addEventListener('canplay', playIdle, { once: true });
     }
 
     function setAvatarTalking(on) {
       if (!avatarVideo) return;
-      avatarVideo.dataset.state = 'idle';
-      avatarVideo.loop = true;
-      if (!avatarVideo.currentSrc.includes('nova_video.mp4')) {
-        avatarVideo.src = '/assets/nova_video.mp4';
-        avatarVideo.load();
-      }
-      try { avatarVideo.play().catch(() => {}); } catch {}
+      // Image is static, just update state for styling purposes
+      avatarVideo.dataset.state = on ? 'talking' : 'idle';
     }
     async function sendToAgent(text, opts) {
       const options = opts || {};

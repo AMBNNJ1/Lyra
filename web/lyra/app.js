@@ -347,13 +347,7 @@ function ensureModernChatUI(){
     send.className = 'send-icon';
     send.title = 'Send';
     send.textContent = '✈';
-    const mic = document.createElement('button');
-    mic.type = 'button';
-    mic.className = 'mic-btn';
-    mic.title = 'Voice';
-    mic.innerHTML = '<span class="mic">≋</span>';
     right.appendChild(send);
-    right.appendChild(mic);
     chatForm.appendChild(attach);
     chatForm.appendChild(input);
     chatForm.appendChild(right);
