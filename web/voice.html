@@ -99,6 +99,8 @@
       return;
     }
 
+    ensureAvatarVideoReady();
+
     let recognition = null;
     let listening = false;
     let awaitingReply = false;
@@ -151,6 +153,7 @@
         currentUrl = URL.createObjectURL(blob);
         currentAudio = new Audio(currentUrl);
         ring.classList.add('speaking');
+        setAvatarTalking(true);
         currentAudio.addEventListener('ended', () => {
           ring.classList.remove('speaking');
           setAvatarTalking(false);
@@ -266,6 +269,14 @@
         if (!currentAudio) setAvatarTalking(false);
         if (shouldConsumeGuest) consumeGuestQuota(guestOverrideCount);
       }
+    async function startIntroConversation() {
+      if (introPrompted) return;
+      introPrompted = true;
+      const reply = await sendToAgent('', { allowEmpty: true });
+      if (!reply) {
+        introPrompted = false;
+        setStatus('Tap the button to speak');
+      }
     }
 
     function leaveVoice() {
@@ -375,6 +386,8 @@
       }
       setStatus('Microphone unavailable');
     }
+
+    startIntroConversation().catch(err => { console.error('auto intro failed', err); });
 
     window.addEventListener('beforeunload', () => {
       cleanupAudio();
