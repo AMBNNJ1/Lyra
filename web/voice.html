@@ -269,6 +269,8 @@
         if (!currentAudio) setAvatarTalking(false);
         if (shouldConsumeGuest) consumeGuestQuota(guestOverrideCount);
       }
+    }
+
     async function startIntroConversation() {
       if (introPrompted) return;
       introPrompted = true;
