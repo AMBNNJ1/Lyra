@@ -19,15 +19,12 @@ from src.neuro_mvp.web_session import WebAgentSession
 from src.neuro_mvp.memory import MemoryClient
 from src.neuro_mvp.tts_kokoro import KokoroTTS
 from src.neuro_mvp.clerk_auth import ClerkVerifier, ClerkAuthError
+from src.neuro_mvp.config import load_config
+from src.neuro_mvp.utils import sanitize_user_id
 import yaml
 
 
-def load_config() -> dict:
-    p = Path("config.yaml")
-    if p.exists():
-        with p.open("r", encoding="utf-8") as f:
-            return yaml.safe_load(f) or {}
-    return {}
+# Configuration loading moved to config.py
 
 
 def _load_clerk_verifier() -> ClerkVerifier:
@@ -70,11 +67,7 @@ def ensure_base_config() -> dict:
     return BASE_CONFIG
 
 
-def _sanitize_user_id(uid: str) -> str:
-    import re
-
-    slug = re.sub(r"[^a-zA-Z0-9]+", "-", uid or "").strip("-").lower()
-    return slug or "default"
+# User ID sanitization moved to utils.py
 
 
 def _session_for_user(user_id: str) -> WebAgentSession:
@@ -103,7 +96,7 @@ def _resolve_session(increment_guest: bool = False):
         session = _session_for_user(raw_uid)
         return session, None, None
 
-    guest_key = _sanitize_user_id(guest_id) if guest_id else "anon"
+    guest_key = sanitize_user_id(guest_id) if guest_id else "anon"
     if not guest_key:
         guest_key = "anon"
 
@@ -302,7 +295,7 @@ def api_tts():
     if token:
         require_clerk_user()
     elif guest_id:
-        guest_key = _sanitize_user_id(guest_id)
+        guest_key = sanitize_user_id(guest_id)
         if not guest_key:
             abort(401, description="Invalid guest id")
     else:

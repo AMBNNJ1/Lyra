@@ -50,19 +50,16 @@ models:
     # Option A: Use a local OpenAI-compatible server (LM Studio/Ollama/vLLM)
     provider: openai_compat   # openai_compat | transformers
     base_url: http://localhost:1234/v1  # LM Studio default
-    id: gemma-3-4b                     # LM Studio/Ollama model id
+    id: gemma-3-4b@q4_k_m             # LM Studio/Ollama model id
     local_only: true                  # do not hit the network
     revision: null                    # optional local revision tag
     max_new_tokens: 128
     temperature: 0.7
     thinking: false
   vlm:
-    enable: true
-    # For vision locally, prefer Transformers with a local model directory.
-    # Many OpenAI-compatible servers don't support vision yet.
-    provider: transformers   # openai_compat | transformers
-    # base_url: http://localhost:1234/v1
-    # id when using transformers should be a local folder path:
-    id: D:/models/Qwen/Qwen2.5-VL-7B-Instruct
+    enable: false
+    # VLM disabled - remove to reduce dependencies
+    provider: transformers
+    id: null
     local_only: true
     max_new_tokens: 128

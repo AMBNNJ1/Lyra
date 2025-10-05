@@ -5,7 +5,14 @@ from typing import Optional, Dict, Any, List
 
 import math
 import wave
-import audioop
+
+# audioop was removed in Python 3.13+, make it optional
+try:
+    import audioop
+    AUDIOOP_AVAILABLE = True
+except ImportError:
+    audioop = None  # type: ignore
+    AUDIOOP_AVAILABLE = False
 
 
 @dataclass
@@ -66,9 +73,9 @@ def _audio_rms_profile(wav_path: str, window_ms: int = 50) -> Dict[str, Any]:
         frames = r.readframes(nframes)
 
     # Convert to mono if needed
-    if nchannels != 1:
+    if nchannels != 1 and AUDIOOP_AVAILABLE:
         try:
-            frames = audioop.tomono(frames, sampwidth, 0.5, 0.5)
+            frames = audioop.tomono(frames, sampwidth, 0.5, 0.5)  # type: ignore
             nchannels = 1
         except Exception:
             pass
@@ -84,7 +91,15 @@ def _audio_rms_profile(wav_path: str, window_ms: int = 50) -> Dict[str, Any]:
     while idx + bytes_per_window <= total_len:
         chunk = frames[idx: idx + bytes_per_window]
         try:
-            rms_val = audioop.rms(chunk, sampwidth)  # root-mean-square amplitude
+            if AUDIOOP_AVAILABLE:
+                rms_val = audioop.rms(chunk, sampwidth)  # type: ignore # root-mean-square amplitude
+            else:
+                # Fallback RMS calculation without audioop
+                import array
+                fmt = {1: 'b', 2: 'h', 4: 'i'}.get(sampwidth, 'h')
+                samples = array.array(fmt, chunk)
+                sum_squares = sum(s * s for s in samples)
+                rms_val = int(math.sqrt(sum_squares / len(samples))) if samples else 0
         except Exception:
             rms_val = 0
         rms_series.append(float(rms_val))

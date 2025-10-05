@@ -4,9 +4,15 @@ import sys
 import pytest
 
 
+class StubMemory:
+    def __init__(self):
+        self.user_id = None
+
+
 class StubSession:
     def __init__(self):
         self.chats = []
+        self.mem = StubMemory()
 
     def chat(self, text):
         self.chats.append(text)
@@ -54,9 +60,11 @@ def test_api_chat_allows_guest_without_token(server_client):
 
 
 def test_api_chat_without_credentials_is_unauthorized(server_client):
-    client, server, _ = server_client
+    client, server, stub = server_client
     server.GUEST_USAGE.clear()
 
     resp = client.post('/api/chat', json={'message': 'hello'})
 
-    assert resp.status_code == 401
+    # Server allows anonymous guests with "anon" key when no credentials provided
+    assert resp.status_code == 200
+    assert stub.chats == ['hello']

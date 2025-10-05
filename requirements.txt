@@ -11,4 +11,3 @@ qdrant-client
 python-jose[cryptography]
 pytest
 mem0ai>=0.1.117
-mem0

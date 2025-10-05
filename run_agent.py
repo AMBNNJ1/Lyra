@@ -4,17 +4,19 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import yaml
-from dotenv import load_dotenv
-
 from src.neuro_mvp.agent_loop import Controller, build_tool_registry
+from src.neuro_mvp.config import load_config, get_memory_config, get_llm_config, get_tts_config
+from dotenv import load_dotenv
 from src.neuro_mvp.emotion import EmotionEngine
+from src.neuro_mvp.exceptions import LLMError, TTSError, MemoryError
 from src.neuro_mvp.memory import MemoryClient
 from src.neuro_mvp.memory_auto import AutoMemoryConfig, MemoryAutoUpdater
-from src.neuro_mvp.openai_compat import ChatLLMConfig, OpenAIChatLLM, OpenAIChatVLM
-from src.neuro_mvp.qwen import LLMConfig, QwenLLM, QwenVLM, VLMConfig
+from src.neuro_mvp.memory_utils import try_direct_memory_answer
+from src.neuro_mvp.openai_compat import ChatLLMConfig, OpenAIChatLLM
+from src.neuro_mvp.qwen import LLMConfig, QwenLLM
 from src.neuro_mvp.sentiment import analyze_text_sentiment
 from src.neuro_mvp.tts_kokoro import KokoroTTS
+from src.neuro_mvp.utils import safe_print
 from src.neuro_mvp.web_search_tool import pack_for_context, search_and_extract
 
 
@@ -35,190 +37,98 @@ load_dotenv()
 _ensure_utf8_stdio()
 
 
-def try_direct_memory_answer(mem: MemoryClient, question: str) -> Optional[str]:
-    """Lightweight heuristics for ?what's my favorite X?"""
-
-    import re
-
-    q = (question or "").strip()
-    if not q:
-        return None
-    match = re.search(r"what(?:'s| is)?\s+my\s+favorite\s+([a-z][a-z \-]{1,32})\??", q.lower())
-    if not match:
-        return None
-    category = (match.group(1) or "").strip().strip(" .,!")
-    if not category:
-        return None
-
-    needles = [f"favorite {category}", f"fav {category}"]
-    items: List[Dict[str, Any]] = []
-    for needle in needles:
-        try:
-            items.extend(mem.find_items(needle, labels=["preferences", "profile", "facts"], limit=24))
-        except Exception:
-            pass
-    if not items:
-        try:
-            items = mem.find_items(category, labels=["preferences", "profile", "facts"], limit=24)
-        except Exception:
-            items = []
-
-    texts: List[str] = []
-    try:
-        blocks = mem.search("") or []
-        for block in blocks:
-            if (block.get("label") in {"preferences", "profile", "facts"}) and block.get("value"):
-                texts.append(str(block.get("value")))
-    except Exception:
-        pass
-    for item in items or []:
-        if item.get("text"):
-            texts.append(str(item.get("text")))
-
-    candidate_lines: List[str] = []
-    banned_prefixes = ("user:", "assistant:", "query:", "title:", "url:", "excerpt:")
-    for text in texts:
-        for line in text.splitlines():
-            stripped = line.strip()
-            if not stripped or "?" in stripped:
-                continue
-            lowered = stripped.lower()
-            if any(lowered.startswith(pref) for pref in banned_prefixes):
-                continue
-            if f"favorite {category}" in lowered or f"fav {category}" in lowered:
-                candidate_lines.append(stripped)
-
-    rx_explicit = re.compile(rf"favorite\s+{re.escape(category)}\s*(?:is|are|:)\s*([^\n\.;,]+)", re.I)
-    for line in candidate_lines:
-        matches = list(rx_explicit.finditer(line))
-        if not matches:
-            continue
-        value = (matches[-1].group(1) or "").strip()
-        value = re.sub(rf"^(?:user['’]s|my|the user['’]s)\s+favorite\s+{re.escape(category)}\s*(?:is|are|:)\s*",
-                        "", value, flags=re.I).strip(" .,!")
-        if value and not any(value.lower().startswith(prefix) for prefix in ("what", "who", "where", "when", "why", "how")):
-            return f"You told me your favorite {category} is {value}."
-
-    rx_like = re.compile(rf"\b(?:i\s+)?(?:like|love|enjoy|prefer)\s+([^\n\.;,]+)", re.I)
-    likes: List[str] = []
-    for text in texts:
-        if category in text.lower():
-            like_match = rx_like.search(text)
-            if like_match:
-                candidate = (like_match.group(1) or "").strip().strip(" .,!")
-                if candidate and candidate.lower() != category:
-                    likes.append(candidate)
-    unique_likes: List[str] = []
-    seen: set[str] = set()
-    for value in likes:
-        lowered = value.lower()
-        if lowered in seen:
-            continue
-        seen.add(lowered)
-        unique_likes.append(value)
-    if unique_likes:
-        if len(unique_likes) == 1:
-            return f"You’ve said you like {unique_likes[0]}. Is that your favorite {category}?"
-        return f"You’ve mentioned liking {', '.join(unique_likes[:3])}. Do you have one favorite {category}?"
-    return None
+# Memory answer function moved to memory_utils.py
 
 
-def load_config() -> Dict[str, Any]:
-    cfg_path = Path("config.yaml")
-    cfg: Dict[str, Any] = {}
-    if cfg_path.exists():
-        cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
-    cfg.setdefault("tts", {})
-    cfg.setdefault("memory", {})
-    cfg["memory"]["provider"] = os.getenv("MEMORY_PROVIDER", cfg["memory"].get("provider", "qdrant"))
-    return cfg
-
-
-def safe_print(text: str) -> None:
-    try:
-        print(text)
-    except Exception:
-        try:
-            __import__("sys").stdout.buffer.write((text + "\n").encode("utf-8", "replace"))
-        except Exception:
-            pass
+# Configuration and utility functions moved to config.py and utils.py
 
 
 async def synthesize(cfg: Dict[str, Any], text: str) -> Optional[Path]:
-    tts_cfg = cfg.get("tts", {})
-    if not bool(tts_cfg.get("enable", False)):
+    """Synthesize text to speech using Kokoro TTS."""
+    tts_cfg = get_tts_config()
+    if not tts_cfg.get("enable", False):
         return None
+    
     kokoro_cfg = tts_cfg.get("kokoro", {})
-    voice = os.getenv("KOKORO_VOICE", kokoro_cfg.get("voice", "af_heart"))
-    lang = os.getenv("KOKORO_LANG", kokoro_cfg.get("lang", "a"))
-    out_path = Path(kokoro_cfg.get("out_path", tts_cfg.get("out_path", "response.wav")))
-    tts = KokoroTTS(lang_code=lang, voice=voice)
-    tts.synthesize_to_wav(text, str(out_path))
-    return out_path
+    voice = kokoro_cfg.get("voice", "af_heart")
+    lang = kokoro_cfg.get("lang", "a")
+    out_path = Path(kokoro_cfg.get("out_path", "response.wav"))
+    
+    try:
+        tts = KokoroTTS(lang_code=lang, voice=voice)
+        tts.synthesize_to_wav(text, str(out_path))
+        return out_path
+    except Exception as e:
+        raise TTSError(f"TTS synthesis failed: {e}") from e
 
 
 class AgentRuntime:
+    """Simplified agent runtime with centralized configuration."""
+    
     def __init__(self, cfg: Dict[str, Any]):
         self.cfg = cfg
-        mem_cfg = cfg.get("memory", {})
-        provider = (mem_cfg.get("provider") or "qdrant").lower()
-        self.mem = MemoryClient(provider=provider)
-
-        qdrant_cfg = mem_cfg.get("qdrant", {})
-        persona = qdrant_cfg.get("persona") or mem_cfg.get("persona") or "Nova is friendly."
-        user_label = qdrant_cfg.get("user_label") or mem_cfg.get("user_label") or "User is Sam."
-        self.mem.ensure_agent(persona=persona, user_label=user_label, model=None, embedding=None)
-
-        self.ee = EmotionEngine()
-        self.ee.add_goal("help_user", 1.0)
-
-        models_cfg = cfg.get("models", {})
-        llm_cfg_raw = models_cfg.get("llm", {})
-        device = models_cfg.get("device", "auto")
-        cpu_safe = bool(models_cfg.get("cpu_safe", True))
-        provider_name = (llm_cfg_raw.get("provider") or "transformers").lower()
-        if provider_name in {"openai", "openai_compat", "lmstudio"}:
-            chat_cfg = ChatLLMConfig(
-                base_url=llm_cfg_raw.get("base_url") or os.getenv("OPENAI_BASE_URL", "http://localhost:1234/v1"),
-                model=llm_cfg_raw.get("id", "qwen2.5-3b-instruct"),
-                max_new_tokens=int(llm_cfg_raw.get("max_new_tokens", 128)),
-                temperature=float(llm_cfg_raw.get("temperature", 0.7)),
-                api_key=os.getenv("OPENAI_API_KEY"),
-            )
-            self.llm = OpenAIChatLLM(chat_cfg)
-        else:
-            qwen_cfg = LLMConfig(
-                model_id=llm_cfg_raw.get("id", "Qwen/Qwen3-8B"),
-                max_new_tokens=int(llm_cfg_raw.get("max_new_tokens", 128)),
-                temperature=float(llm_cfg_raw.get("temperature", 0.7)),
-                thinking=bool(llm_cfg_raw.get("thinking", False)),
-                device=device,
-                cpu_safe=cpu_safe,
-            )
-            self.llm = QwenLLM(qwen_cfg)
-
-        vlm_cfg_raw = models_cfg.get("vlm", {})
-        self.vlm = None
-        if vlm_cfg_raw.get("enable", False):
-            provider_vlm = (vlm_cfg_raw.get("provider") or "transformers").lower()
-            if provider_vlm in {"openai", "openai_compat", "lmstudio"}:
-                self.vlm = OpenAIChatVLM(ChatVLMConfig(
-                    base_url=vlm_cfg_raw.get("base_url") or os.getenv("OPENAI_BASE_URL", "http://localhost:1234/v1"),
-                    model=vlm_cfg_raw.get("id", "qwen2.5-3b-instruct"),
-                    max_new_tokens=int(vlm_cfg_raw.get("max_new_tokens", 128)),
-                    temperature=float(vlm_cfg_raw.get("temperature", 0.7)),
-                    api_key=os.getenv("OPENAI_API_KEY"),
-                ))
+        self.history: List[Dict[str, str]] = []
+        self.turn_count = 0
+        
+        # Initialize components
+        self.mem = self._init_memory()
+        self.ee = self._init_emotion_engine()
+        self.llm = self._init_llm()
+        self.auto_mem = self._init_auto_memory()
+        self.tools = self._init_tools()
+    
+    def _init_memory(self) -> MemoryClient:
+        """Initialize memory client with configuration."""
+        mem_cfg = get_memory_config()
+        provider = mem_cfg.get("provider", "qdrant").lower()
+        
+        try:
+            mem = MemoryClient(provider=provider)
+            qdrant_cfg = mem_cfg.get("qdrant", {})
+            persona = qdrant_cfg.get("persona", "Nova is friendly.")
+            user_label = qdrant_cfg.get("user_label", "User is Sam.")
+            mem.ensure_agent(persona=persona, user_label=user_label, model=None, embedding=None)
+            return mem
+        except Exception as e:
+            raise MemoryError(f"Failed to initialize memory: {e}") from e
+    
+    def _init_emotion_engine(self) -> EmotionEngine:
+        """Initialize emotion engine."""
+        ee = EmotionEngine()
+        ee.add_goal("help_user", 1.0)
+        return ee
+    
+    def _init_llm(self):
+        """Initialize LLM with configuration."""
+        llm_cfg = get_llm_config()
+        provider_name = llm_cfg.get("provider", "openai_compat").lower()
+        
+        try:
+            if provider_name in {"openai", "openai_compat", "lmstudio"}:
+                chat_cfg = ChatLLMConfig(
+                    base_url=llm_cfg.get("base_url", "http://localhost:1234/v1"),
+                    model=llm_cfg.get("id", "qwen2.5-3b-instruct"),
+                    max_new_tokens=int(llm_cfg.get("max_new_tokens", 128)),
+                    temperature=float(llm_cfg.get("temperature", 0.7)),
+                    api_key=llm_cfg.get("api_key"),
+                )
+                return OpenAIChatLLM(chat_cfg)
             else:
-                self.vlm = QwenVLM(VLMConfig(
-                    model_id=vlm_cfg_raw.get("id", "Qwen/Qwen2.5-VL-7B-Instruct"),
-                    max_new_tokens=int(vlm_cfg_raw.get("max_new_tokens", 128)),
-                    device=device,
-                    cpu_safe=cpu_safe,
-                    local_files_only=bool(vlm_cfg_raw.get("local_only", False)),
-                    revision=vlm_cfg_raw.get("revision"),
-                ))
-
+                qwen_cfg = LLMConfig(
+                    model_id=llm_cfg.get("id", "Qwen/Qwen3-8B"),
+                    max_new_tokens=int(llm_cfg.get("max_new_tokens", 128)),
+                    temperature=float(llm_cfg.get("temperature", 0.7)),
+                    thinking=bool(llm_cfg.get("thinking", False)),
+                    device=self.cfg.get("models", {}).get("device", "auto"),
+                    cpu_safe=bool(self.cfg.get("models", {}).get("cpu_safe", True)),
+                )
+                return QwenLLM(qwen_cfg)
+        except Exception as e:
+            raise LLMError(f"Failed to initialize LLM: {e}") from e
+    
+    def _init_auto_memory(self) -> MemoryAutoUpdater:
+        """Initialize auto memory updater."""
+        mem_cfg = get_memory_config()
         auto_cfg = AutoMemoryConfig(
             enable=bool(mem_cfg.get("auto", {}).get("enable", True)),
             importance_threshold=int(mem_cfg.get("auto", {}).get("importance_threshold", 6)),
@@ -228,15 +138,14 @@ class AgentRuntime:
             allow_general_from_auto=bool(mem_cfg.get("auto", {}).get("allow_general_from_auto", False)),
             verbose=bool(mem_cfg.get("auto", {}).get("verbose", False)),
         )
-        self.auto_mem = MemoryAutoUpdater(self.mem, llm=None, cfg=auto_cfg)
-
+        return MemoryAutoUpdater(self.mem, llm=None, cfg=auto_cfg)
+    
+    def _init_tools(self) -> Optional[Controller]:
+        """Initialize tools controller."""
         try:
-            self.tools = Controller(self.llm, self.mem, build_tool_registry(self.mem))
+            return Controller(self.llm, self.mem, build_tool_registry(self.mem))
         except Exception:
-            self.tools = None
-
-        self.history: List[Dict[str, str]] = []
-        self.turn_count = 0
+            return None
 
     def truncated_history(self) -> List[Dict[str, str]]:
         window_n = int(self.cfg.get("conversation", {}).get("window_messages", 10))
@@ -309,13 +218,14 @@ async def handle_turn(run: AgentRuntime, user_text: str, *, play_override: Optio
     run.history.append({"role": "user", "content": user_text})
     try:
         run.ee.appraise_from_text(user_text)
-    except Exception:
-        pass
+    except Exception as e:
+        safe_print(f"[emotion] Failed to appraise text: {e}")
 
     direct = None
     try:
         direct = try_direct_memory_answer(run.mem, user_text)
-    except Exception:
+    except MemoryError as e:
+        safe_print(f"[memory] Failed to get direct answer: {e}")
         direct = None
 
     if direct:
@@ -340,7 +250,8 @@ async def handle_turn(run: AgentRuntime, user_text: str, *, play_override: Optio
     run.auto_mem.llm = run.llm
     try:
         ctx_pack = run.mem.retrieve_context(user_text, budget_tokens=int(os.getenv("MEMORY_BUDGET_TOKENS", "1024")))
-    except Exception:
+    except MemoryError as e:
+        safe_print(f"[memory] Failed to retrieve context: {e}")
         ctx_pack = {"working": {"summary": ""}, "long_term": []}
     working_summary = (ctx_pack.get("working", {}) or {}).get("summary") or ""
     try:
@@ -370,8 +281,8 @@ async def handle_turn(run: AgentRuntime, user_text: str, *, play_override: Optio
         wav_path = await synthesize(run.cfg, utterance)
         if wav_path:
             safe_print(f"[tts] Wrote {wav_path}")
-    except Exception as exc:
-        safe_print(f"[tts] synthesis failed: {exc}")
+    except TTSError as e:
+        safe_print(f"[tts] synthesis failed: {e}")
         wav_path = None
 
     if wav_path:

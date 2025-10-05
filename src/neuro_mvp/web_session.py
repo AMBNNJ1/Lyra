@@ -10,47 +10,13 @@ from .memory import MemoryClient
 from .emotion import EmotionEngine
 from .sentiment import analyze_text_sentiment
 from .memory_auto import MemoryAutoUpdater, AutoMemoryConfig
+from .memory_utils import try_direct_memory_answer
 from .openai_compat import OpenAIChatLLM, ChatLLMConfig
 from .qwen import QwenLLM, LLMConfig
 from .agent_loop import Controller, build_tool_registry, Task, Goal
-from .memory import MemoryClient  # re-import type for helper signature clarity
 
 
-def _try_direct_memory_answer(mem: MemoryClient, question: str) -> Optional[str]:
-    q = (question or "").strip().lower()
-    if not q:
-        return None
-    m = re.search(r"what(?:'s| is)?\s+my\s+favorite\s+([a-z][a-z \-]{1,32})\??", q)
-    if not m:
-        return None
-    cat = (m.group(1) or "").strip().strip(" .,")
-    if not cat:
-        return None
-    try:
-        items = mem.find_items(f"favorite {cat}", labels=["preferences", "profile", "facts"], limit=24)
-    except Exception:
-        items = []
-    texts: List[str] = []
-    for it in items or []:
-        t = it.get("text")
-        if t:
-            texts.append(str(t))
-    # Also scan generic blocks via search
-    try:
-        blocks = mem.search("") or []
-        for b in blocks:
-            if (b.get("label") in {"preferences", "profile", "facts"}) and b.get("value"):
-                texts.append(str(b.get("value")))
-    except Exception:
-        pass
-    rx = re.compile(rf"favorite\s+{re.escape(cat)}\s*(?:is|are|:)\s*([^\n\.;,]+)", re.I)
-    for t in texts:
-        m2 = rx.search(t)
-        if m2:
-            ans = (m2.group(1) or "").strip().strip(" .,")
-            if ans:
-                return f"You told me your favorite {cat} is {ans}."
-    return None
+# Memory answer function moved to memory_utils.py
 
 
 class WebAgentSession:
@@ -178,7 +144,7 @@ class WebAgentSession:
                 pass
         # Fast path: direct memory Q&A for profile/preferences (e.g., "What is my favorite food?")
         try:
-            direct = _try_direct_memory_answer(self.mem, user_text)
+            direct = try_direct_memory_answer(self.mem, user_text)
         except Exception:
             direct = None
         if direct:
@@ -254,7 +220,7 @@ class WebAgentSession:
     
         # Fast path: direct memory Q&A for profile/preferences
         try:
-            direct = _try_direct_memory_answer(self.mem, user_text)
+            direct = try_direct_memory_answer(self.mem, user_text)
         except Exception:
             direct = None
         if direct:
