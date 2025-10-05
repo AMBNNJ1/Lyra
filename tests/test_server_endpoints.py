@@ -4,7 +4,7 @@ import sys
 import pytest
 
 
-class StubMemory:
+class StubMem:
     def __init__(self):
         self.user_id = None
 
@@ -12,11 +12,14 @@ class StubMemory:
 class StubSession:
     def __init__(self):
         self.chats = []
-        self.mem = StubMemory()
+        self.mem = StubMem()
 
     def chat(self, text):
         self.chats.append(text)
         return {'reply': f'echo:{text}'}
+
+    def stream_chat(self, text):
+        yield f'echo:{text}'
 
 
 @pytest.fixture
@@ -59,12 +62,12 @@ def test_api_chat_allows_guest_without_token(server_client):
     assert remaining == server.GUEST_MESSAGE_LIMIT - 1
 
 
-def test_api_chat_without_credentials_is_unauthorized(server_client):
+def test_api_chat_without_credentials_defaults_to_anon_guest(server_client):
     client, server, stub = server_client
     server.GUEST_USAGE.clear()
 
     resp = client.post('/api/chat', json={'message': 'hello'})
 
-    # Server allows anonymous guests with "anon" key when no credentials provided
     assert resp.status_code == 200
     assert stub.chats == ['hello']
+    assert 'X-Guest-Remaining' not in resp.headers

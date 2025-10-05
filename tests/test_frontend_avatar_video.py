@@ -34,20 +34,18 @@ def test_chat_stop_talking_is_no_op():
     assert "vid.src = '/assets/nova_video.mp4';" in section
 
 
-def test_voice_mode_uses_only_videos():
+def test_voice_mode_renders_avatar_image():
     html = read('web/voice.html')
-    video_match = re.search(r'<video[^>]+id="voiceVideo"[^>]+>', html)
-    assert video_match, 'voice mode should render video avatar'
-    assert '/assets/nova_video.mp4' in video_match.group(0)
-    assert 'playsinline' in video_match.group(0)
-    assert 'voiceFallback' not in html
+    image_match = re.search(r'<img[^>]+id="voiceVideo"[^>]+>', html)
+    assert image_match, 'voice mode should render avatar image'
+    assert '/assets/nova_avatar.jpg' in image_match.group(0)
+    assert 'alt="Lyra avatar"' in image_match.group(0)
 
 
-def test_voice_set_avatar_talking_keeps_idle_video():
+def test_voice_set_avatar_talking_updates_state():
     html = read('web/voice.html')
     section = extract_section(html, 'function setAvatarTalking(on) {', 'async function sendToAgent(')
-    assert "avatarVideo.src = '/assets/nova_video.mp4';" in section
-    assert 'avatarVideo.loop = true;' in section
+    assert "avatarVideo.dataset.state = on ? 'talking' : 'idle';" in section
 
 
 def test_voice_set_avatar_talking_invocation_present():
