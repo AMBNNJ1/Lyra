@@ -19,11 +19,18 @@
     let clerkTokenTemplate = null;
     let clerkSignInUnmount = null;
     let clerkUserButtonUnmount = null;
-    const CLERK_LOGIN_DISABLED = true; // temporary guest-only mode
+    let CLERK_LOGIN_DISABLED = true; // default until fetched from server
     const DEFAULT_GUEST_LIMIT = 5;
-    const GUEST_LIMIT = CLERK_LOGIN_DISABLED ? Number.MAX_SAFE_INTEGER : DEFAULT_GUEST_LIMIT;
+    let GUEST_LIMIT = CLERK_LOGIN_DISABLED ? Number.MAX_SAFE_INTEGER : DEFAULT_GUEST_LIMIT;
     let guestId = null;
     let guestMessageCount = 0;
+
+    // Character selection state
+    let selectedCharacterId = null;
+    let characters = { predefined: [], custom: [] };
+    let pendingImageId = null;
+    let characterToDelete = null;
+
     (function initGuestQuota(){
       try {
         const storedId = localStorage.getItem('lyraGuestId');
@@ -145,8 +152,8 @@
       av.className = 'avatar' + (role==='assistant' ? ' ai' : ' user');
       if (role === 'assistant') {
         const img = document.createElement('img');
-        img.src = '/assets/nova_avatar.jpg';
-        img.alt = 'Lyra avatar';
+        img.src = getSelectedCharacterImage();
+        img.alt = 'Assistant avatar';
         av.appendChild(img);
       } else {
         av.textContent = 'You';
@@ -231,17 +238,22 @@
     }
 
     async function initClerk(){
-      if (CLERK_LOGIN_DISABLED) {
-        const login = document.getElementById('loginBtn');
-        const userBtn = document.getElementById('clerkUserButton');
-        if (login) login.hidden = true;
-        if (userBtn) userBtn.hidden = true;
-        return;
-      }
       try {
         const res = await fetch('/api/auth/config');
         if (!res.ok) throw new Error('config request failed');
         const data = await res.json();
+        // Update CLERK_LOGIN_DISABLED from server config
+        if (typeof data.loginDisabled === 'boolean') {
+          CLERK_LOGIN_DISABLED = data.loginDisabled;
+          GUEST_LIMIT = CLERK_LOGIN_DISABLED ? Number.MAX_SAFE_INTEGER : DEFAULT_GUEST_LIMIT;
+        }
+        if (CLERK_LOGIN_DISABLED) {
+          const login = document.getElementById('loginBtn');
+          const userBtn = document.getElementById('clerkUserButton');
+          if (login) login.hidden = true;
+          if (userBtn) userBtn.hidden = true;
+          return;
+        }
         const pk = data.publishableKey;
         clerkTokenTemplate = (data.jwtTemplate && data.jwtTemplate.trim()) ? data.jwtTemplate.trim() : null;
         if (!pk){
@@ -345,6 +357,8 @@
         if (!hasActivatedAuth && authToken){
           activateAuthenticatedFlows();
         }
+        // Update sidebar profile display
+        if (typeof updateProfileDisplay === 'function') updateProfileDisplay();
       } else {
         authToken = null;
         hasActivatedAuth = false;
@@ -376,6 +390,8 @@
           clerkSignInMounted = false;
           signInRoot.innerHTML = '';
         }
+        // Update sidebar profile display
+        if (typeof updateProfileDisplay === 'function') updateProfileDisplay();
       }
     }
 
@@ -387,27 +403,126 @@
       }
     }
 
-    function startTalking(){
-      const vid = document.getElementById('avatarVideo');
-      if (!vid) return;
-      vid.removeAttribute('data-state');
-      vid.loop = true;
-      if (!vid.currentSrc.includes('nova_video.mp4')) {
-        vid.src = '/assets/nova_video.mp4';
-        vid.load();
+    // Video management state for emotion-based crossfade
+    let currentVideoState = 'neutral';
+    let preloadedVideos = {};
+    let activeVideoSlot = 'A';
+
+    const EMOJI_MAP = {
+      joy: '😊', distress: '😢', hope: '🤞', fear: '😰',
+      relief: '😌', disappointment: '😞', gratitude: '🙏', anger: '😠',
+      pride: '😤', shame: '😳', admiration: '🤩', reproach: '😒',
+      frustration: '😤', surprise: '😲', neutral: '😐',
+      happy: '😊', sad: '😢', anxious: '😰', angry: '😠', curious: '🤔'
+    };
+
+    function setAvatarState(talking) {
+      const vidA = document.getElementById('avatarVideoA');
+      const vidB = document.getElementById('avatarVideoB');
+      const activeVid = activeVideoSlot === 'A' ? vidA : vidB;
+      if (!activeVid) return;
+      activeVid.loop = true;
+      if (talking) {
+        try { activeVid.play().catch(() => {}); } catch {}
+      } else {
+        try { activeVid.pause(); } catch {}
       }
-      try { vid.play().catch(() => {}); } catch {}
     }
-    function stopTalking(){
-      const vid = document.getElementById('avatarVideo');
-      if (!vid) return;
-      vid.removeAttribute('data-state');
-      vid.loop = true;
-      if (!vid.currentSrc.includes('nova_video.mp4')) {
-        vid.src = '/assets/nova_video.mp4';
-        vid.load();
+    function startTalking() { setAvatarState(true); }
+    function stopTalking() { setAvatarState(false); }
+
+    // Preload all videos for current character
+    async function preloadCharacterVideos(characterId) {
+      try {
+        const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+        if (!authToken) applyGuestHeaders(headers);
+        const res = await fetch(`/api/characters/${characterId}/videos`, { headers });
+        if (!res.ok) return;
+        const data = await res.json();
+        const videos = data.videos || {};
+        for (const [state, url] of Object.entries(videos)) {
+          if (!preloadedVideos[url]) {
+            const video = document.createElement('video');
+            video.preload = 'auto';
+            video.src = url;
+            video.load();
+            preloadedVideos[url] = video;
+          }
+        }
+      } catch (err) {
+        console.warn('[video] preload failed', err);
       }
-      try { vid.play().catch(() => {}); } catch {}
+    }
+
+    // Switch video with crossfade
+    function switchEmotionVideo(newVideoUrl, newState) {
+      const vidA = document.getElementById('avatarVideoA');
+      const vidB = document.getElementById('avatarVideoB');
+      const fallback = document.getElementById('avatarFallback');
+      if (!vidA || !vidB) return;
+      if (currentVideoState === newState) return;
+
+      currentVideoState = newState;
+
+      // If URL is an image (fallback), show the image instead
+      if (newVideoUrl && (newVideoUrl.endsWith('.jpg') || newVideoUrl.endsWith('.png'))) {
+        vidA.classList.remove('active');
+        vidB.classList.remove('active');
+        if (fallback) {
+          fallback.src = newVideoUrl;
+          fallback.hidden = false;
+        }
+        return;
+      }
+
+      // Hide fallback image
+      if (fallback) fallback.hidden = true;
+
+      const incoming = activeVideoSlot === 'A' ? vidB : vidA;
+      const outgoing = activeVideoSlot === 'A' ? vidA : vidB;
+
+      incoming.src = newVideoUrl;
+      incoming.load();
+      incoming.play().then(() => {
+        incoming.classList.add('active');
+        outgoing.classList.remove('active');
+        setTimeout(() => { outgoing.pause(); }, 500);
+        activeVideoSlot = activeVideoSlot === 'A' ? 'B' : 'A';
+      }).catch(err => {
+        console.warn('[video] switch failed', err);
+      });
+    }
+
+    function updateEmotionUI(data) {
+      const { primary, intensity, videoState, videoUrl, levels } = data;
+
+      // Update emotion card display
+      const emEmoji = document.getElementById('emEmoji');
+      const emName = document.getElementById('emName');
+      const emStrength = document.getElementById('emStrength');
+      const emFill = document.getElementById('emFill');
+      const emTags = document.getElementById('emTags');
+
+      if (emEmoji) emEmoji.textContent = EMOJI_MAP[primary] || EMOJI_MAP[videoState] || '😐';
+      if (emName) emName.textContent = primary || 'neutral';
+      if (emStrength) emStrength.textContent = Math.round((intensity || 0) * 100) + '%';
+      if (emFill) emFill.style.width = ((intensity || 0) * 100) + '%';
+
+      // Update tags
+      if (emTags && levels) {
+        const sorted = Object.entries(levels)
+          .filter(([_, v]) => v > 0.1)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3);
+        emTags.innerHTML = sorted.map(([name, val]) =>
+          `<span class="chip">${name} ${Math.round(val * 100)}%</span>`
+        ).join('');
+      }
+
+      // Switch video if state changed
+      if (videoUrl && videoState) {
+        switchEmotionVideo(videoUrl, videoState);
+      }
     }
 
     async function fetchEmotion(){
@@ -510,6 +625,11 @@
         if (usedGuest && guestShouldConsume) consumeGuestQuota(guestOverrideCount);
       }
       sendBtn.disabled = false; scrollToBottom();
+      // Save messages to thread
+      if (txt && speech) {
+        ThreadManager.addMessage('user', txt);
+        ThreadManager.addMessage('assistant', speech);
+      }
     }
 
     async function toggleContinuous(cb){
@@ -560,33 +680,953 @@
       document.body.classList.toggle('light', light);
       localStorage.setItem('theme', light ? 'light' : 'dark');
     }
+
+    // ==================== Character Selection Functions ====================
+
+    async function checkOnboardingStatus() {
+      try {
+        const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+        if (!authToken) applyGuestHeaders(headers);
+        const res = await fetch('/api/onboarding/status', { headers });
+        if (!res.ok) return { completed: false };
+        return await res.json();
+      } catch {
+        return { completed: false };
+      }
+    }
+
+    async function loadCharacters() {
+      try {
+        const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+        if (!authToken) applyGuestHeaders(headers);
+        const res = await fetch('/api/characters', { headers });
+        if (!res.ok) return;
+        const data = await res.json();
+        characters.predefined = data.predefined || [];
+        characters.custom = data.custom || [];
+        selectedCharacterId = data.selected_id || 'nova';
+
+        // Cache in localStorage for quick restore
+        try {
+          localStorage.setItem('lyraSelectedCharacter', JSON.stringify({
+            id: selectedCharacterId,
+            characters: data
+          }));
+        } catch {}
+
+        renderCharacterGrid();
+        updateAvatarForCharacter();
+      } catch (err) {
+        console.error('[characters] load failed', err);
+      }
+    }
+
+    function renderCharacterGrid() {
+      const grid = document.getElementById('characterGrid');
+      if (!grid) return;
+
+      // Ensure grid is visible
+      grid.hidden = false;
+      grid.innerHTML = '';
+
+      // Render predefined characters
+      characters.predefined.forEach(char => {
+        grid.appendChild(createCharacterCard(char, false));
+      });
+
+      // Render custom characters (with edit/delete buttons)
+      characters.custom.forEach(char => {
+        grid.appendChild(createCharacterCard(char, true));
+      });
+
+      // Add "Create Custom" card
+      const createCard = document.createElement('div');
+      createCard.className = 'character-card create-card';
+      createCard.innerHTML = `
+        <div class="card-avatar create-avatar">+</div>
+        <div class="card-name">Create Custom</div>
+        <div class="card-persona">Design your own companion</div>
+      `;
+      createCard.addEventListener('click', showCustomForm);
+      grid.appendChild(createCard);
+
+      // Update selection state
+      updateSelectionState();
+    }
+
+    function createCharacterCard(char, isCustom = false) {
+      const card = document.createElement('div');
+      card.className = 'character-card';
+      card.dataset.characterId = char.id;
+
+      if (char.id === selectedCharacterId) {
+        card.classList.add('selected');
+      }
+
+      // Add custom class for custom characters
+      if (isCustom) {
+        card.classList.add('custom-character');
+      }
+
+      const actionsHtml = isCustom ? `
+        <div class="card-actions">
+          <button type="button" class="card-action-btn edit-btn" data-id="${char.id}" title="Edit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </button>
+          <button type="button" class="card-action-btn delete-btn" data-id="${char.id}" title="Delete">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+          </button>
+        </div>
+      ` : '';
+
+      card.innerHTML = `
+        ${actionsHtml}
+        <div class="card-avatar">
+          <img src="${char.image_url}" alt="${char.name}" />
+        </div>
+        <div class="card-name">${char.name}</div>
+        <div class="card-persona">${truncateText(char.persona, 80)}</div>
+      `;
+
+      // Add click handler for selection (but not on action buttons)
+      card.addEventListener('click', (e) => {
+        if (!e.target.closest('.card-action-btn')) {
+          selectCharacter(char.id);
+        }
+      });
+
+      // Add handlers for edit/delete if custom
+      if (isCustom) {
+        const editBtn = card.querySelector('.edit-btn');
+        const deleteBtn = card.querySelector('.delete-btn');
+
+        editBtn?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          editCustomCharacter(char);
+        });
+
+        deleteBtn?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          confirmDeleteCharacter(char);
+        });
+      }
+
+      return card;
+    }
+
+    function truncateText(text, max) {
+      if (!text || text.length <= max) return text || '';
+      return text.substring(0, max).trim() + '...';
+    }
+
+    async function selectCharacter(charId) {
+      selectedCharacterId = charId;
+      updateSelectionState();
+
+      // Enable start button
+      const startBtn = document.getElementById('startChatBtn');
+      if (startBtn) startBtn.disabled = false;
+
+      // Persist selection to server
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+        else applyGuestHeaders(headers);
+
+        await fetch('/api/characters/select', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ character_id: charId })
+        });
+
+        // Update local cache
+        try {
+          localStorage.setItem('lyraSelectedCharacter', JSON.stringify({
+            id: charId,
+            characters
+          }));
+        } catch {}
+
+        updateAvatarForCharacter();
+      } catch (err) {
+        console.error('[characters] select failed', err);
+      }
+    }
+
+    function updateSelectionState() {
+      const cards = document.querySelectorAll('.character-card');
+      cards.forEach(card => {
+        if (card.dataset.characterId === selectedCharacterId) {
+          card.classList.add('selected');
+        } else {
+          card.classList.remove('selected');
+        }
+      });
+    }
+
+    function getSelectedCharacterImage() {
+      const allChars = [...characters.predefined, ...characters.custom];
+      const char = allChars.find(c => c.id === selectedCharacterId);
+      return char ? char.image_url : '/assets/nova_avatar.jpg';
+    }
+
+    function updateAvatarForCharacter() {
+      const allChars = [...characters.predefined, ...characters.custom];
+      const char = allChars.find(c => c.id === selectedCharacterId);
+      if (!char) return;
+
+      // Preload videos for this character
+      preloadCharacterVideos(char.id);
+
+      // Reset to neutral video for this character
+      currentVideoState = '';  // Force update
+      const videoUrls = char.video_urls || {};
+      const neutralUrl = videoUrls.neutral || char.image_url;
+      switchEmotionVideo(neutralUrl, 'neutral');
+
+      // Set fallback poster on both videos
+      const vidA = document.getElementById('avatarVideoA');
+      const vidB = document.getElementById('avatarVideoB');
+      const fallback = document.getElementById('avatarFallback');
+      if (vidA) vidA.poster = char.image_url;
+      if (vidB) vidB.poster = char.image_url;
+      if (fallback) fallback.src = char.image_url;
+    }
+
+    function showCustomForm() {
+      const grid = document.getElementById('characterGrid');
+      const form = document.getElementById('customCharacterForm');
+      const footer = document.getElementById('onboardingFooter');
+
+      if (grid) grid.hidden = true;
+      if (form) form.hidden = false;
+      if (footer) footer.hidden = true;
+
+      // Reset form
+      const nameInput = document.getElementById('customName');
+      const personaInput = document.getElementById('customPersona');
+      const countEl = document.getElementById('personaCount');
+      if (nameInput) nameInput.value = '';
+      if (personaInput) personaInput.value = '';
+      if (countEl) countEl.textContent = '0';
+      resetImageUpload();
+    }
+
+    function hideCustomForm() {
+      const grid = document.getElementById('characterGrid');
+      const form = document.getElementById('customCharacterForm');
+      const footer = document.getElementById('onboardingFooter');
+
+      if (grid) grid.hidden = false;
+      if (form) form.hidden = true;
+      if (footer) footer.hidden = false;
+
+      // Reset editing state
+      editingCharacterId = null;
+      const createBtn = document.getElementById('createCustomBtn');
+      if (createBtn) createBtn.textContent = 'Create Character';
+    }
+
+    function resetImageUpload() {
+      pendingImageId = null;
+      const preview = document.getElementById('imagePreview');
+      const placeholder = document.getElementById('imagePlaceholder');
+      const input = document.getElementById('customImage');
+
+      if (preview) preview.hidden = true;
+      if (placeholder) placeholder.hidden = false;
+      if (input) input.value = '';
+    }
+
+    async function uploadImage(file) {
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image must be under 5MB');
+        return;
+      }
+      if (file.type && !file.type.startsWith('image/')) {
+        alert('Please choose an image file');
+        return;
+      }
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const headers = {};
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      else applyGuestHeaders(headers);
+
+      try {
+        const res = await fetch('/api/characters/upload-image', {
+          method: 'POST',
+          headers,
+          body: formData
+        });
+
+        if (!res.ok) {
+          let errMsg = 'Upload failed';
+          try {
+            const err = await res.json();
+            errMsg = err.error || err.message || errMsg;
+          } catch {
+            errMsg = `Server error (${res.status})`;
+          }
+          throw new Error(errMsg);
+        }
+
+        const data = await res.json();
+        pendingImageId = data.image_id;
+
+        // Show preview
+        const preview = document.getElementById('imagePreview');
+        const previewImg = document.getElementById('previewImg');
+        const placeholder = document.getElementById('imagePlaceholder');
+
+        if (previewImg) previewImg.src = data.image_url;
+        if (preview) preview.hidden = false;
+        if (placeholder) placeholder.hidden = true;
+
+        updateCreateButtonState();
+      } catch (err) {
+        console.error('[image] upload failed', err);
+        let msg = err.message || 'Unknown error';
+        if (msg === 'Failed to fetch') {
+          msg = 'Network error - check if server is running';
+        }
+        alert('Image upload failed: ' + msg);
+      }
+    }
+
+    function updateCreateButtonState() {
+      const nameInput = document.getElementById('customName');
+      const personaInput = document.getElementById('customPersona');
+      const createBtn = document.getElementById('createCustomBtn');
+
+      const hasName = (nameInput?.value || '').trim().length > 0;
+      const hasPersona = (personaInput?.value || '').trim().length > 0;
+
+      if (createBtn) {
+        createBtn.disabled = !(hasName && hasPersona);
+      }
+    }
+
+    async function createCustomCharacter() {
+      const name = document.getElementById('customName')?.value?.trim() || '';
+      const persona = document.getElementById('customPersona')?.value?.trim() || '';
+
+      if (!name || !persona) return;
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      else applyGuestHeaders(headers);
+
+      try {
+        const res = await fetch('/api/characters/custom', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            name,
+            persona,
+            image_id: pendingImageId || ''
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Create failed');
+        }
+
+        const data = await res.json();
+
+        // Add to local list
+        characters.custom.push(data.character);
+
+        // Select the new character
+        selectedCharacterId = data.character.id;
+
+        // Go back to grid and render
+        hideCustomForm();
+        renderCharacterGrid();
+
+        // Update sidebar character list
+        if (typeof renderSidebarCharacters === 'function') renderSidebarCharacters();
+
+        // Enable start button
+        const startBtn = document.getElementById('startChatBtn');
+        if (startBtn) startBtn.disabled = false;
+
+      } catch (err) {
+        console.error('[character] create failed', err);
+        alert('Failed to create character: ' + err.message);
+      }
+    }
+
+    function confirmDeleteCharacter(char) {
+      const modal = document.getElementById('deleteConfirmModal');
+      const message = document.getElementById('deleteConfirmMessage');
+      if (!modal) return;
+
+      characterToDelete = char;
+      if (message) {
+        message.textContent = `Are you sure you want to delete "${char.name}"? This action cannot be undone.`;
+      }
+      modal.hidden = false;
+    }
+
+    function closeDeleteModal() {
+      const modal = document.getElementById('deleteConfirmModal');
+      if (modal) modal.hidden = true;
+      characterToDelete = null;
+    }
+
+    async function deleteCustomCharacter() {
+      if (!characterToDelete) return;
+
+      const charId = characterToDelete.id;
+      const confirmBtn = document.getElementById('confirmDeleteBtn');
+
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Deleting...';
+      }
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      else applyGuestHeaders(headers);
+
+      try {
+        const res = await fetch(`/api/characters/custom/${charId}`, {
+          method: 'DELETE',
+          headers
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Delete failed');
+        }
+
+        // Remove from local list
+        characters.custom = characters.custom.filter(c => c.id !== charId);
+
+        // If deleted character was selected, switch to nova
+        if (selectedCharacterId === charId) {
+          selectedCharacterId = 'nova';
+          updateAvatarForCharacter();
+        }
+
+        // Re-render the grid
+        renderCharacterGrid();
+
+        // Update sidebar character list
+        if (typeof renderSidebarCharacters === 'function') renderSidebarCharacters();
+
+        // Close the modal
+        closeDeleteModal();
+
+      } catch (err) {
+        console.error('[character] delete failed', err);
+        alert('Failed to delete character: ' + err.message);
+      } finally {
+        if (confirmBtn) {
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = 'Delete';
+        }
+      }
+    }
+
+    let editingCharacterId = null;
+
+    function editCustomCharacter(char) {
+      editingCharacterId = char.id;
+
+      const grid = document.getElementById('characterGrid');
+      const form = document.getElementById('customCharacterForm');
+      const footer = document.getElementById('onboardingFooter');
+
+      if (grid) grid.hidden = true;
+      if (form) form.hidden = false;
+      if (footer) footer.hidden = true;
+
+      // Populate form with existing data
+      const nameInput = document.getElementById('customName');
+      const personaInput = document.getElementById('customPersona');
+      const countEl = document.getElementById('personaCount');
+      if (nameInput) nameInput.value = char.name || '';
+      if (personaInput) personaInput.value = char.persona || '';
+      if (countEl) countEl.textContent = (char.persona || '').length;
+
+      // Show existing image if available
+      if (char.image_url) {
+        const preview = document.getElementById('imagePreview');
+        const previewImg = document.getElementById('previewImg');
+        const placeholder = document.getElementById('imagePlaceholder');
+        if (previewImg) previewImg.src = char.image_url;
+        if (preview) preview.hidden = false;
+        if (placeholder) placeholder.hidden = true;
+      } else {
+        resetImageUpload();
+      }
+
+      // Change button text to "Save Changes"
+      const createBtn = document.getElementById('createCustomBtn');
+      if (createBtn) createBtn.textContent = 'Save Changes';
+
+      updateCreateButtonState();
+    }
+
+    async function saveEditedCharacter() {
+      if (!editingCharacterId) return createCustomCharacter();
+
+      const name = document.getElementById('customName')?.value?.trim() || '';
+      const persona = document.getElementById('customPersona')?.value?.trim() || '';
+
+      if (!name || !persona) return;
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      else applyGuestHeaders(headers);
+
+      try {
+        const res = await fetch(`/api/characters/custom/${editingCharacterId}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({
+            name,
+            persona,
+            image_id: pendingImageId || ''
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Update failed');
+        }
+
+        const data = await res.json();
+
+        // Update in local list
+        const idx = characters.custom.findIndex(c => c.id === editingCharacterId);
+        if (idx !== -1) {
+          characters.custom[idx] = data.character;
+        }
+
+        // Reset editing state
+        editingCharacterId = null;
+        const createBtn = document.getElementById('createCustomBtn');
+        if (createBtn) createBtn.textContent = 'Create Character';
+
+        // Go back to grid and render
+        hideCustomForm();
+        renderCharacterGrid();
+
+        // Update sidebar character list
+        if (typeof renderSidebarCharacters === 'function') renderSidebarCharacters();
+
+        // Update avatar if currently selected
+        if (selectedCharacterId === data.character.id) {
+          updateAvatarForCharacter();
+        }
+
+      } catch (err) {
+        console.error('[character] update failed', err);
+        alert('Failed to update character: ' + err.message);
+      }
+    }
+
+    async function initOnboarding() {
+      // Check localStorage for cached data first
+      let hasCachedData = false;
+      try {
+        const cached = localStorage.getItem('lyraSelectedCharacter');
+        if (cached) {
+          const data = JSON.parse(cached);
+          selectedCharacterId = data.id;
+          if (data.characters) {
+            characters = data.characters;
+            hasCachedData = true;
+          }
+        }
+      } catch {}
+
+      // Check server for onboarding status
+      const status = await checkOnboardingStatus();
+
+      if (status.completed) {
+        // User has completed onboarding, just load characters
+        await loadCharacters();
+        return;
+      }
+
+      // Show onboarding modal
+      // Render cached data immediately so cards show while API loads
+      if (hasCachedData) {
+        renderCharacterGrid();
+      }
+      await loadCharacters();
+      // Ensure grid is rendered even if loadCharacters had issues
+      renderCharacterGrid();
+      // Ensure form is hidden and footer is visible (reset to initial state)
+      const form = document.getElementById('customCharacterForm');
+      const footer = document.getElementById('onboardingFooter');
+      if (form) form.hidden = true;
+      if (footer) footer.hidden = false;
+      const modal = document.getElementById('onboardingModal');
+      if (modal) modal.hidden = false;
+    }
+
+    function closeOnboarding() {
+      const modal = document.getElementById('onboardingModal');
+      if (modal) modal.hidden = true;
+    }
+
+    function setupOnboardingListeners() {
+      // Onboarding modal event listeners
+      const onboardingClose = document.getElementById('onboardingClose');
+      onboardingClose?.addEventListener('click', closeOnboarding);
+
+      const startChatBtn = document.getElementById('startChatBtn');
+      startChatBtn?.addEventListener('click', closeOnboarding);
+
+      const skipOnboardingBtn = document.getElementById('skipOnboardingBtn');
+      skipOnboardingBtn?.addEventListener('click', async () => {
+        await selectCharacter('nova');
+        closeOnboarding();
+      });
+
+      const backToGridBtn = document.getElementById('backToGrid');
+      backToGridBtn?.addEventListener('click', hideCustomForm);
+
+      // Custom character form event listeners
+      const customNameInput = document.getElementById('customName');
+      customNameInput?.addEventListener('input', updateCreateButtonState);
+
+      const customPersonaInput = document.getElementById('customPersona');
+      customPersonaInput?.addEventListener('input', () => {
+        const count = customPersonaInput.value.length;
+        const countEl = document.getElementById('personaCount');
+        if (countEl) countEl.textContent = count;
+        updateCreateButtonState();
+      });
+
+      const createCustomBtn = document.getElementById('createCustomBtn');
+      createCustomBtn?.addEventListener('click', () => {
+        if (editingCharacterId) {
+          saveEditedCharacter();
+        } else {
+          createCustomCharacter();
+        }
+      });
+
+      // Image upload handling
+      const imageDropZone = document.getElementById('imageDropZone');
+      const customImageInput = document.getElementById('customImage');
+
+      imageDropZone?.addEventListener('click', () => customImageInput?.click());
+
+      imageDropZone?.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        imageDropZone.classList.add('dragover');
+      });
+
+      imageDropZone?.addEventListener('dragleave', () => {
+        imageDropZone.classList.remove('dragover');
+      });
+
+      imageDropZone?.addEventListener('drop', (e) => {
+        e.preventDefault();
+        imageDropZone.classList.remove('dragover');
+        const files = e.dataTransfer?.files;
+        if (files && files[0]) uploadImage(files[0]);
+      });
+
+      customImageInput?.addEventListener('change', () => {
+        const file = customImageInput.files?.[0];
+        if (file) uploadImage(file);
+      });
+
+      const removeImageBtn = document.getElementById('removeImage');
+      removeImageBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        resetImageUpload();
+      });
+
+      // Delete confirmation modal event listeners
+      const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+      const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+      const deleteConfirmModal = document.getElementById('deleteConfirmModal');
+
+      cancelDeleteBtn?.addEventListener('click', closeDeleteModal);
+      confirmDeleteBtn?.addEventListener('click', deleteCustomCharacter);
+      deleteConfirmModal?.addEventListener('click', (e) => {
+        if (e.target === deleteConfirmModal) closeDeleteModal();
+      });
+
+      // Close delete modal on Escape key
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && deleteConfirmModal && !deleteConfirmModal.hidden) {
+          closeDeleteModal();
+        }
+      });
+    }
+
+    // ==================== Thread Manager ====================
+
+    const ThreadManager = {
+      STORAGE_KEY: 'lyraThreads',
+      MAX_THREADS: 50,
+      MAX_MESSAGES_PER_THREAD: 100,
+      threads: [],
+      activeThreadId: null,
+
+      init() {
+        this.load();
+        if (!this.activeThreadId && this.threads.length === 0) {
+          this.create('New Chat');
+        }
+        this.render();
+      },
+
+      load() {
+        try {
+          const data = JSON.parse(localStorage.getItem(this.STORAGE_KEY) || '{}');
+          this.threads = data.threads || [];
+          this.activeThreadId = data.activeThreadId || null;
+        } catch { this.threads = []; }
+      },
+
+      save() {
+        try {
+          localStorage.setItem(this.STORAGE_KEY, JSON.stringify({
+            threads: this.threads.slice(0, this.MAX_THREADS),
+            activeThreadId: this.activeThreadId
+          }));
+        } catch {}
+      },
+
+      create(title = 'New Chat') {
+        const thread = {
+          id: 'thread-' + Date.now(),
+          title,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          characterId: selectedCharacterId || 'nova',
+          messages: []
+        };
+        this.threads.unshift(thread);
+        this.activeThreadId = thread.id;
+        this.save();
+        this.render();
+        this.clearChatUI();
+        return thread;
+      },
+
+      switch(threadId) {
+        const thread = this.threads.find(t => t.id === threadId);
+        if (!thread) return;
+        this.activeThreadId = threadId;
+        this.save();
+        this.render();
+        this.loadMessagesToUI(thread.messages);
+        // Switch character if different
+        if (thread.characterId && thread.characterId !== selectedCharacterId) {
+          selectCharacter(thread.characterId);
+          renderSidebarCharacters();
+        }
+      },
+
+      addMessage(role, content) {
+        const thread = this.threads.find(t => t.id === this.activeThreadId);
+        if (!thread) return;
+        thread.messages.push({ role, content });
+        if (thread.messages.length > this.MAX_MESSAGES_PER_THREAD) {
+          thread.messages = thread.messages.slice(-this.MAX_MESSAGES_PER_THREAD);
+        }
+        thread.updatedAt = new Date().toISOString();
+        // Auto-title from first user message
+        if (thread.title === 'New Chat' && role === 'user') {
+          thread.title = content.slice(0, 30) + (content.length > 30 ? '...' : '');
+        }
+        this.save();
+        this.render();
+      },
+
+      delete(threadId) {
+        this.threads = this.threads.filter(t => t.id !== threadId);
+        if (this.activeThreadId === threadId) {
+          this.activeThreadId = this.threads[0]?.id || null;
+          if (!this.activeThreadId) {
+            this.create('New Chat');
+          } else {
+            this.switch(this.activeThreadId);
+          }
+        }
+        this.save();
+        this.render();
+      },
+
+      rename(threadId, newTitle) {
+        const thread = this.threads.find(t => t.id === threadId);
+        if (thread) {
+          thread.title = newTitle;
+          this.save();
+          this.render();
+        }
+      },
+
+      render() {
+        const list = document.getElementById('threadList');
+        if (!list) return;
+        list.innerHTML = '';
+        this.threads.forEach(thread => {
+          const item = document.createElement('div');
+          item.className = 'thread-item' + (thread.id === this.activeThreadId ? ' active' : '');
+          item.innerHTML = `
+            <span class="thread-title">${this.escapeHtml(thread.title)}</span>
+            <button type="button" class="thread-delete" data-id="${thread.id}">&times;</button>
+          `;
+          item.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('thread-delete')) {
+              this.switch(thread.id);
+              SidebarController.close();
+            }
+          });
+          list.appendChild(item);
+        });
+        // Wire delete buttons
+        list.querySelectorAll('.thread-delete').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.delete(btn.dataset.id);
+          });
+        });
+      },
+
+      clearChatUI() {
+        const chat = document.getElementById('chat');
+        if (chat) chat.innerHTML = '';
+      },
+
+      loadMessagesToUI(messages) {
+        const chat = document.getElementById('chat');
+        if (!chat) return;
+        chat.innerHTML = '';
+        messages.forEach(msg => {
+          chat.appendChild(msgEl(msg.role, msg.content));
+        });
+        scrollToBottom();
+      },
+
+      escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+      }
+    };
+
+    // ==================== Sidebar Controller ====================
+
+    const SidebarController = {
+      isOpen: false,
+
+      init() {
+        document.getElementById('sidebarToggle')?.addEventListener('click', () => this.toggle());
+        document.getElementById('closeSidebar')?.addEventListener('click', () => this.close());
+        document.getElementById('sidebarOverlay')?.addEventListener('click', () => this.close());
+        document.getElementById('newChatBtn')?.addEventListener('click', () => {
+          ThreadManager.create('New Chat');
+          this.close();
+        });
+        // Wire up add character button to open onboarding modal
+        document.getElementById('sidebarAddCharacter')?.addEventListener('click', () => {
+          this.close();
+          const modal = document.getElementById('onboardingModal');
+          if (modal) modal.hidden = false;
+        });
+      },
+
+      open() {
+        this.isOpen = true;
+        document.getElementById('chatSidebar')?.classList.add('open');
+        document.getElementById('sidebarOverlay')?.classList.add('active');
+      },
+
+      close() {
+        this.isOpen = false;
+        document.getElementById('chatSidebar')?.classList.remove('open');
+        document.getElementById('sidebarOverlay')?.classList.remove('active');
+      },
+
+      toggle() {
+        this.isOpen ? this.close() : this.open();
+      }
+    };
+
+    // ==================== Sidebar Character List ====================
+
+    function renderSidebarCharacters() {
+      const list = document.getElementById('sidebarCharacterList');
+      if (!list) return;
+      list.innerHTML = '';
+      const allChars = [...characters.predefined, ...characters.custom];
+      allChars.forEach(char => {
+        const item = document.createElement('div');
+        item.className = 'sidebar-character-item' + (char.id === selectedCharacterId ? ' selected' : '');
+        item.innerHTML = `
+          <img class="sidebar-character-avatar" src="${char.image_url}" alt="${char.name}" />
+          <div class="sidebar-character-info">
+            <div class="sidebar-character-name">${char.name}</div>
+            <div class="sidebar-character-persona">${truncateText(char.persona, 40)}</div>
+          </div>
+        `;
+        item.addEventListener('click', () => {
+          selectCharacter(char.id);
+          renderSidebarCharacters();
+        });
+        list.appendChild(item);
+      });
+    }
+
+    // ==================== Profile Display ====================
+
+    function updateProfileDisplay() {
+      const avatar = document.getElementById('profileAvatar');
+      const name = document.getElementById('profileName');
+      if (clerkInstance?.isSignedIn && clerkInstance.user) {
+        if (avatar) avatar.innerHTML = `<img src="${clerkInstance.user.imageUrl}" alt="Profile" />`;
+        if (name) name.textContent = clerkInstance.user.firstName || clerkInstance.user.username || 'User';
+      } else {
+        if (avatar) avatar.textContent = '?';
+        if (name) name.textContent = 'Guest';
+      }
+    }
+
     window.addEventListener('DOMContentLoaded', async ()=>{
       applySavedTheme();
-      if (!CLERK_LOGIN_DISABLED){
-        await initClerk();
-      } else {
-        const login = document.getElementById('loginBtn');
-        const userBtn = document.getElementById('clerkUserButton');
-        if (login) login.hidden = true;
-        if (userBtn) userBtn.hidden = true;
-      }
-      // Ensure avatar video loops and autoplays; recover by reloading if playback fails
-      const vid = document.getElementById('avatarVideo');
-      if (vid) {
+      // Always fetch auth config from server to get loginDisabled setting
+      await initClerk();
+      // Ensure avatar videos loop and autoplay; recover by reloading if playback fails
+      const initVideo = (vid, fallbackSrc) => {
+        if (!vid) return;
         try {
           vid.muted = true; vid.loop = true;
           const start = () => { vid.play().catch(()=>{}); };
           vid.addEventListener('canplay', start, { once: true });
           vid.addEventListener('loadeddata', start, { once: true });
           vid.addEventListener('error', () => {
-            vid.removeAttribute('data-state');
             vid.loop = true;
-            vid.src = '/assets/nova_video.mp4';
+            vid.src = fallbackSrc;
             vid.play().catch(()=>{});
           });
           if (vid.readyState >= 2) start();
         } catch {}
-      }
+      };
+      initVideo(document.getElementById('avatarVideoA'), '/assets/nova_neutral.mp4');
+      initVideo(document.getElementById('avatarVideoB'), '/assets/nova_neutral.mp4');
       const ta = document.getElementById('ta');
       ta.addEventListener('input', ()=> autoResize(ta));
       ta.addEventListener('keydown', (e)=>{
@@ -613,7 +1653,15 @@
       window.addEventListener('resize', scrollToBottom);
       scrollToBottom();
 
-      // Micro-gestures removed
+      // Initialize character selection / onboarding
+      setupOnboardingListeners();
+      await initOnboarding();
+
+      // Initialize sidebar components
+      SidebarController.init();
+      ThreadManager.init();
+      renderSidebarCharacters();
+      updateProfileDisplay();
     });
   </script>
   <meta name="color-scheme" content="dark" />
@@ -624,12 +1672,59 @@
   <!-- Using system fonts to avoid CDN dependency -->
   </head>
 <body>
+  <!-- Sidebar -->
+  <aside id="chatSidebar" class="chat-sidebar">
+    <div class="sidebar-header">
+      <button type="button" id="newChatBtn" class="new-chat-btn">+ New Chat</button>
+      <button type="button" id="closeSidebar" class="sidebar-close">&times;</button>
+    </div>
+
+    <div class="sidebar-content">
+      <!-- Profile Section -->
+      <div class="sidebar-profile">
+        <div class="profile-avatar" id="profileAvatar">?</div>
+        <span class="profile-name" id="profileName">Guest</span>
+      </div>
+
+      <!-- Character Selection -->
+      <div class="sidebar-section">
+        <h3 class="section-label">Companion</h3>
+        <div id="sidebarCharacterList" class="sidebar-character-list">
+          <!-- Character items rendered by JS -->
+        </div>
+        <button type="button" id="sidebarAddCharacter" class="add-companion-btn">
+          <span class="add-icon">+</span>
+          <span>Create Custom</span>
+        </button>
+      </div>
+
+      <!-- Thread List -->
+      <div class="sidebar-section threads-section">
+        <h3 class="section-label">Recent Chats</h3>
+        <div id="threadList" class="thread-list">
+          <!-- Thread items rendered by JS -->
+        </div>
+      </div>
+    </div>
+  </aside>
+  <div id="sidebarOverlay" class="sidebar-overlay"></div>
+
   <div class="page">
     <div class="topbar">
       <div class="topbar-actions">
+        <button type="button" id="sidebarToggle" class="theme-btn icon-only" aria-label="Toggle sidebar">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12h18M3 6h18M3 18h18"/>
+          </svg>
+        </button>
         <button id="loginBtn" class="theme-btn" aria-label="Sign in">Sign in</button>
         <div id="clerkUserButton" class="user-button" hidden></div>
-        <button id="voiceMode" class="theme-btn icon-only" aria-label="Open voice mode"><span aria-hidden="true">&#127908;</span></button>
+        <button id="voiceMode" class="theme-btn icon-only" aria-label="Open voice mode">
+          <svg class="icon icon-mic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 16.5a4 4 0 0 0 4-4V7.5a4 4 0 1 0-8 0v5a4 4 0 0 0 4 4z" />
+            <path d="M8 11.25a4 4 0 0 0 8 0M12 16.5v4.25M15 21.75H9" />
+          </svg>
+        </button>
         <button id="theme" class="theme-btn icon-only" aria-label="Toggle theme"><span aria-hidden="true">&#9728;</span></button>
       </div>
     </div>
@@ -638,7 +1733,9 @@
         <aside class="avatar-pane">
           <div class="unity-wrap">
             <div id="avatarFrame" class="avatar-frame">
-              <video id="avatarVideo" class="avatar-video" src="/assets/nova_video.mp4" autoplay muted loop playsinline preload="auto" aria-label="Avatar video"></video>
+              <video id="avatarVideoA" class="avatar-video active" src="/assets/nova_neutral.mp4" autoplay muted loop playsinline preload="auto" aria-label="Avatar video"></video>
+              <video id="avatarVideoB" class="avatar-video" muted loop playsinline preload="auto" aria-label="Avatar video alternate"></video>
+              <img id="avatarFallback" class="avatar-fallback" src="/assets/nova_avatar.jpg" alt="Avatar fallback" hidden />
             </div>
             <div id="emotionCard" class="emotion-card" aria-live="polite">
               <div class="em-head">
@@ -678,6 +1775,63 @@
     <div class="rpm-panel" style="max-width:520px; height:auto; padding:20px;">
       <button class="rpm-close" id="authClose">X</button>
       <div id="clerkSignIn" class="clerk-signin"></div>
+    </div>
+  </div>
+
+  <!-- Character Selection / Onboarding Modal -->
+  <div id="onboardingModal" class="rpm-modal" hidden>
+    <div class="onboarding-panel">
+      <button class="rpm-close" id="onboardingClose">X</button>
+      <h2 class="onboarding-title">Choose Your Companion</h2>
+      <p class="onboarding-subtitle">Select a character or create your own</p>
+
+      <div id="characterGrid" class="character-grid">
+        <!-- Character cards will be rendered here by JS -->
+      </div>
+
+      <div id="customCharacterForm" class="custom-form" hidden>
+        <button type="button" id="backToGrid" class="back-btn">&larr; Back</button>
+        <h3>Create Custom Character</h3>
+        <div class="form-group">
+          <label for="customName">Name</label>
+          <input type="text" id="customName" maxlength="32" placeholder="Enter character name" />
+        </div>
+        <div class="form-group">
+          <label for="customImage">Avatar Image</label>
+          <div id="imageDropZone" class="image-drop-zone">
+            <input type="file" id="customImage" accept="image/*" hidden />
+            <div id="imagePreview" class="image-preview" hidden>
+              <img id="previewImg" src="" alt="Preview" />
+              <button type="button" id="removeImage" class="remove-image">X</button>
+            </div>
+            <div id="imagePlaceholder" class="image-placeholder">
+              <span>Drop image here or click to upload</span>
+              <span class="hint">Max 5MB, will be resized to 512x512</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="customPersona">Personality</label>
+          <textarea id="customPersona" maxlength="500" rows="4" placeholder="Describe your character's personality..."></textarea>
+          <span class="char-count"><span id="personaCount">0</span>/500</span>
+        </div>
+        <button type="button" id="createCustomBtn" class="primary-btn" disabled>Create Character</button>
+      </div>
+
+      <div class="onboarding-footer" id="onboardingFooter">
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="deleteConfirmModal" class="rpm-modal" hidden>
+    <div class="confirm-panel">
+      <h3 class="confirm-title">Delete Companion?</h3>
+      <p class="confirm-message" id="deleteConfirmMessage">Are you sure you want to delete this companion? This action cannot be undone.</p>
+      <div class="confirm-actions">
+        <button type="button" id="cancelDeleteBtn" class="secondary-btn">Cancel</button>
+        <button type="button" id="confirmDeleteBtn" class="danger-btn">Delete</button>
+      </div>
     </div>
   </div>
 </body>
