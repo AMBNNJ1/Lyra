@@ -1,27 +1,74 @@
 from __future__ import annotations
 
+import logging
 import os
 import threading
 import time
-from typing import Any, Dict, List, Optional, Iterator
+from typing import Any, Dict, List, Optional, Iterator, TYPE_CHECKING
 import re
 
 from .memory import MemoryClient
+
+if TYPE_CHECKING:
+    from .characters import Character
+
+logger = logging.getLogger(__name__)
 from .emotion import EmotionEngine
 from .sentiment import analyze_text_sentiment
 from .memory_auto import MemoryAutoUpdater, AutoMemoryConfig
-from .memory_utils import try_direct_memory_answer
 from .openai_compat import OpenAIChatLLM, ChatLLMConfig
 from .qwen import QwenLLM, LLMConfig
 from .agent_loop import Controller, build_tool_registry, Task, Goal
+from .memory import MemoryClient  # re-import type for helper signature clarity
 
 
-# Memory answer function moved to memory_utils.py
+def _try_direct_memory_answer(mem: MemoryClient, question: str) -> Optional[str]:
+    q = (question or "").strip().lower()
+    if not q:
+        return None
+    m = re.search(r"what(?:'s| is)?\s+my\s+favorite\s+([a-z][a-z \-]{1,32})\??", q)
+    if not m:
+        return None
+    cat = (m.group(1) or "").strip().strip(" .,")
+    if not cat:
+        return None
+    try:
+        items = mem.find_items(f"favorite {cat}", labels=["preferences", "profile", "facts"], limit=24)
+    except (ConnectionError, TimeoutError, ValueError) as exc:
+        logger.debug("Memory find_items failed for favorite %s: %s", cat, exc)
+        items = []
+    texts: List[str] = []
+    for it in items or []:
+        t = it.get("text")
+        if t:
+            texts.append(str(t))
+    # Also scan generic blocks via search
+    try:
+        blocks = mem.search("") or []
+        for b in blocks:
+            if (b.get("label") in {"preferences", "profile", "facts"}) and b.get("value"):
+                texts.append(str(b.get("value")))
+    except (ConnectionError, TimeoutError, ValueError) as exc:
+        logger.debug("Memory search for preferences failed: %s", exc)
+    rx = re.compile(rf"favorite\s+{re.escape(cat)}\s*(?:is|are|:)\s*([^\n\.;,]+)", re.I)
+    for t in texts:
+        m2 = rx.search(t)
+        if m2:
+            ans = (m2.group(1) or "").strip().strip(" .,")
+            if ans:
+                return f"You told me your favorite {cat} is {ans}."
+    return None
 
 
 class WebAgentSession:
-    def __init__(self, cfg: Dict[str, Any], user_id: str = "default"):
+    def __init__(
+        self,
+        cfg: Dict[str, Any],
+        user_id: str = "default",
+        character: Optional["Character"] = None,
+    ):
         self.cfg = cfg
+        self.character = character  # Character persona for this session
         self.mem = MemoryClient(provider=cfg.get("memory", {}).get("provider", "qdrant"), user_id=user_id)
         mem_cfg = cfg.get("memory", {})
         qdrant_cfg = mem_cfg.get("qdrant", {})
@@ -31,9 +78,9 @@ class WebAgentSession:
         try:
             # Simple startup note
             prov = self.mem.provider
-            print(f"[web_session] Memory provider: {prov}")
-        except Exception:
-            pass
+            logger.info("Memory provider: %s", prov)
+        except AttributeError as exc:
+            logger.debug("Could not read memory provider attribute: %s", exc)
 
         # Affect
         self.ee = EmotionEngine()
@@ -42,7 +89,16 @@ class WebAgentSession:
         # LLM
         llm_cfg_raw = cfg.get("models", {}).get("llm", {})
         provider = (llm_cfg_raw.get("provider", "openai_compat") or "openai_compat").lower()
-        if provider in {"openai", "openai_compat", "lmstudio"}:
+        if provider == "runpod":
+            from .runpod_client import RunPodLLMClient, RunPodLLMConfig
+            self.llm = RunPodLLMClient(RunPodLLMConfig(
+                endpoint_id=llm_cfg_raw.get("runpod_endpoint_id") or os.getenv("RUNPOD_LLM_ENDPOINT", ""),
+                api_key=os.getenv("RUNPOD_API_KEY"),
+                model=llm_cfg_raw.get("id", "Qwen/Qwen2.5-3B-Instruct"),
+                max_new_tokens=int(llm_cfg_raw.get("max_new_tokens", 128)),
+                temperature=float(llm_cfg_raw.get("temperature", 0.7)),
+            ))
+        elif provider in {"openai", "openai_compat", "lmstudio"}:
             self.llm = OpenAIChatLLM(ChatLLMConfig(
                 base_url=llm_cfg_raw.get("base_url") or os.getenv("OPENAI_BASE_URL", "http://localhost:1234/v1"),
                 model=llm_cfg_raw.get("id", "qwen2.5-3b-instruct"),
@@ -77,6 +133,7 @@ class WebAgentSession:
 
         # State
         self.history: List[Dict[str, str]] = []
+        self._history_lock = threading.Lock()
         self.window_n = int(cfg.get("conversation", {}).get("window_messages", 10))
         self.require_input = bool(cfg.get("conversation", {}).get("require_input", True))
         self.autodrive_timeout_s = float(cfg.get("conversation", {}).get("autodrive_input_timeout_sec", 2))
@@ -99,12 +156,26 @@ class WebAgentSession:
             self._stop = True
 
     def truncated_history(self) -> List[Dict[str, str]]:
-        return self.history[-self.window_n:] if len(self.history) > self.window_n else list(self.history)
+        with self._history_lock:
+            return self.history[-self.window_n:] if len(self.history) > self.window_n else list(self.history)
+
+    def _append_history(self, role: str, content: str) -> None:
+        with self._history_lock:
+            self.history.append({"role": role, "content": content})
+
+    def _history_len(self) -> int:
+        with self._history_lock:
+            return len(self.history)
+
+    def _last_history_role(self) -> Optional[str]:
+        with self._history_lock:
+            return self.history[-1]["role"] if self.history else None
 
     def _build_system_seed(self, last_user: Optional[str]) -> str:
         try:
             rel = self.mem.search("goals")
-        except Exception:
+        except (ConnectionError, TimeoutError, ValueError) as exc:
+            logger.debug("Memory search for goals failed: %s", exc)
             rel = []
         persona_blocks = [r for r in rel if r.get('label') in {"persona", "user", "profile", "facts", "preferences"}]
         persona_text = "\n".join([f"- {b.get('value','')}" for b in persona_blocks if b.get('value')])
@@ -112,19 +183,29 @@ class WebAgentSession:
         goals_text = "\n".join(goals_lines)
         try:
             ctx = self.mem.retrieve_context(last_user or "", budget_tokens=int(os.getenv("MEMORY_BUDGET_TOKENS", "1024")))
-        except Exception:
+        except (ConnectionError, TimeoutError, ValueError) as exc:
+            logger.debug("Memory retrieve_context failed: %s", exc)
             ctx = {"working": {"summary": ""}, "long_term": []}
         working_text = (ctx.get("working", {}) or {}).get("summary") or ""
         lt_lines = [f"- {it.get('value','')[:180]}" for it in (ctx.get("long_term") or [])[:6] if it.get('value')]
         long_term_text = "\n".join(lt_lines)
         affect_line = self.ee.to_prompt()
+
+        # Use character name and persona dynamically
+        char_name = self.character.name if self.character else "Nova"
+        char_persona = self.character.persona if self.character else ""
+
         base_system = (
-            "You are Nova, a friendly companion. Keep context coherent and grounded.\n"
+            f"You are {char_name}, a friendly companion. Keep context coherent and grounded.\n"
             "Anchor your reply to the user's latest message; do not change topics.\n"
             "You HAVE long-term memory and can recall user facts. Use the Long-term memory bullets below when relevant.\n"
             "Never claim you have no memory. If nothing relevant is found, say you couldn't find it yet and ask briefly to share it so you can remember.\n"
             "Ask at most one short question when helpful. Tone: concise, warm; avoid filler.\n"
         )
+
+        # Include character persona if available
+        if char_persona:
+            base_system += f"\nYour personality: {char_persona}\n"
         seed = base_system + \
                ("\n" + affect_line if affect_line else "") + \
                (f"\nPersona and facts:\n{persona_text}" if persona_text else "") + \
@@ -137,19 +218,20 @@ class WebAgentSession:
     def chat(self, user_text: str) -> Dict[str, Any]:
         user_text = (user_text or "").strip()
         if user_text:
-            self.history.append({"role": "user", "content": user_text})
+            self._append_history("user", user_text)
             try:
                 self.ee.appraise_from_text(user_text)
-            except Exception:
-                pass
+            except (ValueError, TypeError, AttributeError) as exc:
+                logger.debug("Emotion appraisal failed: %s", exc)
         # Fast path: direct memory Q&A for profile/preferences (e.g., "What is my favorite food?")
         try:
-            direct = try_direct_memory_answer(self.mem, user_text)
-        except Exception:
+            direct = _try_direct_memory_answer(self.mem, user_text)
+        except (ConnectionError, TimeoutError, ValueError, re.error) as exc:
+            logger.debug("Direct memory answer lookup failed: %s", exc)
             direct = None
         if direct:
             assistant = direct
-            self.history.append({"role": "assistant", "content": assistant})
+            self._append_history("assistant", assistant)
             # Persist and auto memory same as below
             try:
                 if user_text:
@@ -159,8 +241,8 @@ class WebAgentSession:
                 working_summary = (ctx_pack.get("working", {}) or {}).get("summary") or ""
                 self.auto_mem.llm = self.llm
                 self.auto_mem.process_turn(user_text or "", assistant, working_summary)
-            except Exception:
-                pass
+            except (ConnectionError, TimeoutError, ValueError, TypeError) as exc:
+                logger.warning("Memory operations failed in chat (direct path): %s", exc)
             return {"reply": assistant, "messages": self.truncated_history()}
     
         # Use Controller for tool-aware response
@@ -169,27 +251,29 @@ class WebAgentSession:
         if not task:
             task = Task(id="t_general", text="Respond to the user message, using tools if needed for information.", goal_id=goal.id)
         memories = self.tools_controller.retrieve_memories(goal, task)
-        prompt = self.tools_controller.build_prompt(goal, task, memories)
+        base_prompt = self.tools_controller.build_prompt(goal, task, memories)
+        # Always include user message in prompt so the LLM addresses it
+        prompt = base_prompt + f"\n\nUser message: {user_text}" if user_text else base_prompt
         llm_out = self.tools_controller.run_llm(prompt)
         action = self.tools_controller.choose_action(prompt, task, llm_out)
         if action:
             obs = self.tools_controller.dispatch(action)
-            tool_ctx = f"Tool result: {obs.text}"
+            tool_ctx = f"\nTool result: {obs.text}"
             # Re-run LLM with tool observation
-            prompt2 = prompt + f"\n\nUser message: {user_text}\n{tool_ctx}\nNow generate the final response."
+            prompt2 = prompt + f"{tool_ctx}\nNow generate the final response."
             llm_out2 = self.tools_controller.run_llm(prompt2)
             assistant = str(llm_out2)
         else:
             assistant = str(llm_out)
-    
-        self.history.append({"role": "assistant", "content": assistant})
-    
+
+        self._append_history("assistant", assistant)
+
         # Sentiment, auto memory
         try:
             ts = analyze_text_sentiment(assistant)
             _ = ts.label
-        except Exception:
-            pass
+        except (ValueError, TypeError, AttributeError) as exc:
+            logger.debug("Sentiment analysis failed: %s", exc)
         # Persist turn and update memories similar to terminal app
         try:
             if user_text:
@@ -199,9 +283,9 @@ class WebAgentSession:
             working_summary = (ctx_pack.get("working", {}) or {}).get("summary") or ""
             self.auto_mem.llm = self.llm
             self.auto_mem.process_turn(user_text or "", assistant, working_summary)
-        except Exception:
-            pass
-    
+        except (ConnectionError, TimeoutError, ValueError, TypeError) as exc:
+            logger.warning("Memory auto-update failed in chat: %s", exc)
+
         return {"reply": assistant, "messages": self.truncated_history()}
 
     def stream_chat(self, user_text: str) -> Iterator[str]:
@@ -212,20 +296,21 @@ class WebAgentSession:
         """
         user_text = (user_text or "").strip()
         if user_text:
-            self.history.append({"role": "user", "content": user_text})
+            self._append_history("user", user_text)
             try:
                 self.ee.appraise_from_text(user_text)
-            except Exception:
-                pass
-    
+            except (ValueError, TypeError, AttributeError) as exc:
+                logger.debug("Emotion appraisal failed in stream_chat: %s", exc)
+
         # Fast path: direct memory Q&A for profile/preferences
         try:
-            direct = try_direct_memory_answer(self.mem, user_text)
-        except Exception:
+            direct = _try_direct_memory_answer(self.mem, user_text)
+        except (ConnectionError, TimeoutError, ValueError, re.error) as exc:
+            logger.debug("Direct memory answer lookup failed in stream_chat: %s", exc)
             direct = None
         if direct:
             assistant = direct
-            self.history.append({"role": "assistant", "content": assistant})
+            self._append_history("assistant", assistant)
             try:
                 if user_text:
                     self.mem.log_interaction(user_text, assistant)
@@ -234,8 +319,8 @@ class WebAgentSession:
                 working_summary = (ctx_pack.get("working", {}) or {}).get("summary") or ""
                 self.auto_mem.llm = self.llm
                 self.auto_mem.process_turn(user_text or "", assistant, working_summary)
-            except Exception:
-                pass
+            except (ConnectionError, TimeoutError, ValueError, TypeError) as exc:
+                logger.warning("Memory operations failed in stream_chat (direct path): %s", exc)
             yield assistant
             return
     
@@ -245,57 +330,69 @@ class WebAgentSession:
         if not task:
             task = Task(id="t_general", text="Respond to the user message, using tools if needed for information.", goal_id=goal.id)
         memories = self.tools_controller.retrieve_memories(goal, task)
-        prompt = self.tools_controller.build_prompt(goal, task, memories)
+        base_prompt = self.tools_controller.build_prompt(goal, task, memories)
+        # Always include user message in prompt so the LLM addresses it
+        prompt = base_prompt + f"\n\nUser message: {user_text}" if user_text else base_prompt
         llm_out = self.tools_controller.run_llm(prompt)
         action = self.tools_controller.choose_action(prompt, task, llm_out)
         tool_ctx = ""
         if action:
             obs = self.tools_controller.dispatch(action)
-            tool_ctx = f"Tool result: {obs.text}"
+            tool_ctx = f"\nTool result: {obs.text}"
             # Re-run LLM with tool observation for final response
-            prompt2 = prompt + f"\n\nUser message: {user_text}\n{tool_ctx}\nNow generate the final response."
+            prompt2 = prompt + f"{tool_ctx}\nNow generate the final response."
             llm_out2 = self.tools_controller.run_llm(prompt2)
             assistant = str(llm_out2)
         else:
             assistant = str(llm_out)
     
-        # Stream the final assistant response
+        # Stream the final assistant response and collect for history
+        streamed_parts: List[str] = []
         if isinstance(self.llm, OpenAIChatLLM):
             # Reconstruct messages for streaming the final response
-            messages_final = [{"role": "system", "content": self._build_system_seed(user_text)}] + self.truncated_history() + [{"role": "user", "content": tool_ctx if tool_ctx else user_text}]
+            # Include user_text and tool context together so the model sees both
+            final_user_content = user_text
+            if tool_ctx:
+                final_user_content = f"{user_text}\n{tool_ctx}\nNow generate the final response."
+            messages_final = [{"role": "system", "content": self._build_system_seed(user_text)}] + self.truncated_history()[:-1] + [{"role": "user", "content": final_user_content}]
             try:
                 for piece in self.llm.stream_from_messages(messages_final):
                     if isinstance(piece, str) and piece:
+                        streamed_parts.append(piece)
                         yield piece
-            except Exception:
+            except (ConnectionError, TimeoutError, OSError) as exc:
+                logger.warning("LLM streaming failed, falling back to non-streaming: %s", exc)
+                streamed_parts = [assistant]
                 yield assistant
         else:
+            streamed_parts = [assistant]
             yield assistant
-    
-        self.history.append({"role": "assistant", "content": assistant})
-    
+
+        # Store the actual streamed output in history
+        final_assistant = "".join(streamed_parts)
+        self._append_history("assistant", final_assistant)
+
         # Post-processing: sentiment and memory updates
         try:
-            ts = analyze_text_sentiment(assistant)
+            ts = analyze_text_sentiment(final_assistant)
             _ = ts.label
-        except Exception:
-            pass
+        except (ValueError, TypeError, AttributeError) as exc:
+            logger.debug("Sentiment analysis failed in stream_chat: %s", exc)
         try:
             if user_text:
-                self.mem.log_interaction(user_text, assistant)
+                self.mem.log_interaction(user_text, final_assistant)
                 _ = self.mem.try_autocapture(user_text)
             ctx_pack = self.mem.retrieve_context(user_text or "", budget_tokens=int(os.getenv("MEMORY_BUDGET_TOKENS", "1024")))
             working_summary = (ctx_pack.get("working", {}) or {}).get("summary") or ""
             self.auto_mem.llm = self.llm
-            self.auto_mem.process_turn(user_text or "", assistant, working_summary)
-        except Exception:
-            pass
-    
+            self.auto_mem.process_turn(user_text or "", final_assistant, working_summary)
+        except (ConnectionError, TimeoutError, ValueError, TypeError) as exc:
+            logger.warning("Memory auto-update failed in stream_chat: %s", exc)
+
         # Nothing else to yield; the SSE route will append [DONE]
         return
 
     def _continuous_loop(self) -> None:
-        last_len = len(self.history)
         # Wait a short grace period so server is ready
         time.sleep(0.2)
         while True:
@@ -308,19 +405,19 @@ class WebAgentSession:
                 continue
             try:
                 # If no new user message in timeout, self-continue
-                start_len = len(self.history)
+                start_len = self._history_len()
                 waited = 0.0
                 step = 0.2
                 while waited < max(self.autodrive_timeout_s, 0.5):
                     time.sleep(step)
                     waited += step
-                    if len(self.history) > start_len and self.history[-1]["role"] == "user":
+                    if self._history_len() > start_len and self._last_history_role() == "user":
                         break
                 # If still no user, self-continue by sending empty user signal
-                if len(self.history) == start_len:
+                if self._history_len() == start_len:
                     self.chat("")
-                last_len = len(self.history)
-            except Exception:
+            except (ConnectionError, TimeoutError, ValueError, RuntimeError) as exc:
+                logger.warning("Continuous loop iteration failed: %s", exc)
                 time.sleep(0.5)
                 continue
 

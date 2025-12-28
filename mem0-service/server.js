@@ -22,13 +22,17 @@ function resolveCompatibleBaseUrl() {
 }
 
 function resolveCompatibleApiKey() {
-  return (
+  const key = (
     process.env.MEM0_LMSTUDIO_API_KEY ||
     process.env.MEM0_OPENAI_API_KEY ||
     process.env.OPENAI_API_KEY ||
     process.env.LMSTUDIO_API_KEY ||
-    'lmstudio'
+    ''
   );
+  if (!key) {
+    console.warn('[mem0-service] No API key configured. Set MEM0_LMSTUDIO_API_KEY, MEM0_OPENAI_API_KEY, OPENAI_API_KEY, or LMSTUDIO_API_KEY.');
+  }
+  return key;
 }
 
 function resolveEmbedModel() {

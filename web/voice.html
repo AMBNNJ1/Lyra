@@ -13,11 +13,134 @@
       <span class="icon" aria-hidden="true">&larr;</span>
       <span class="label">Back to Chat</span>
     </button>
+    <button id="sidebarToggle" type="button" class="voice-link sidebar-toggle" aria-label="Toggle companions">
+      <span class="icon" aria-hidden="true">&#9776;</span>
+      <span class="label">Companions</span>
+    </button>
   </header>
+
+  <!-- Retractable Sidebar -->
+  <aside id="companionSidebar" class="companion-sidebar" aria-hidden="true">
+    <div class="sidebar-header">
+      <h2 class="sidebar-title">Companions</h2>
+      <button id="closeSidebar" type="button" class="sidebar-close" aria-label="Close sidebar">&times;</button>
+    </div>
+    <div class="sidebar-content">
+      <div id="sidebarCharacterList" class="sidebar-character-list">
+        <!-- Character items rendered by JS -->
+      </div>
+      <button id="addCompanionBtn" type="button" class="add-companion-btn">
+        <span class="add-icon">+</span>
+        <span>Add New Companion</span>
+      </button>
+    </div>
+  </aside>
+  <div id="sidebarOverlay" class="sidebar-overlay" hidden></div>
+
+  <!-- Onboarding Modal for adding new companions -->
+  <div id="onboardingModal" class="rpm-modal" hidden>
+    <div class="onboarding-panel">
+      <button type="button" class="rpm-close" id="onboardingClose">&times;</button>
+      <h2 class="onboarding-title">Choose Your Companion</h2>
+      <p class="onboarding-subtitle">Select a character or create your own</p>
+
+      <div id="characterGrid" class="character-grid">
+        <!-- Character cards will be rendered here by JS -->
+      </div>
+
+      <div id="customCharacterForm" class="custom-form" hidden>
+        <button type="button" id="backToGrid" class="back-btn">&larr; Back</button>
+        <h3>Create Custom Character</h3>
+        <div class="form-group">
+          <label for="customName">Name</label>
+          <input type="text" id="customName" maxlength="32" placeholder="Enter character name" />
+        </div>
+        <div class="form-group">
+          <label for="customImage">Avatar Image</label>
+          <div id="imageDropZone" class="image-drop-zone">
+            <input type="file" id="customImage" accept="image/*" hidden />
+            <div id="imagePreview" class="image-preview" hidden>
+              <img id="previewImg" src="" alt="Preview" />
+              <button type="button" id="removeImage" class="remove-image">&times;</button>
+            </div>
+            <div id="imagePlaceholder" class="image-placeholder">
+              <span>Drop image here or click to upload</span>
+              <span class="hint">Max 5MB, will be resized to 512x512</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="customPersona">Personality</label>
+          <textarea id="customPersona" maxlength="500" rows="4" placeholder="Describe your character's personality..."></textarea>
+          <span class="char-count"><span id="personaCount">0</span>/500</span>
+        </div>
+        <button type="button" id="createCustomBtn" class="primary-btn" disabled>Create Character</button>
+      </div>
+
+      <div class="onboarding-footer" id="onboardingFooter">
+        <button type="button" id="startChatBtn" class="primary-btn" disabled>Select</button>
+        <button type="button" id="skipOnboardingBtn" class="secondary-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Character Modal -->
+  <div id="editCharacterModal" class="rpm-modal" hidden>
+    <div class="onboarding-panel edit-panel">
+      <button type="button" class="rpm-close" id="editModalClose">&times;</button>
+      <h2 class="onboarding-title">Edit Companion</h2>
+      <p class="onboarding-subtitle">Update your custom companion's details</p>
+
+      <div class="custom-form">
+        <input type="hidden" id="editCharacterId" />
+        <div class="form-group">
+          <label for="editName">Name</label>
+          <input type="text" id="editName" maxlength="32" placeholder="Enter character name" />
+        </div>
+        <div class="form-group">
+          <label for="editImage">Avatar Image</label>
+          <div id="editImageDropZone" class="image-drop-zone">
+            <input type="file" id="editImage" accept="image/*" hidden />
+            <div id="editImagePreview" class="image-preview" hidden>
+              <img id="editPreviewImg" src="" alt="Preview" />
+              <button type="button" id="editRemoveImage" class="remove-image">&times;</button>
+            </div>
+            <div id="editImagePlaceholder" class="image-placeholder">
+              <span>Drop image here or click to upload</span>
+              <span class="hint">Max 5MB, will be resized to 512x512</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="editPersona">Personality</label>
+          <textarea id="editPersona" maxlength="500" rows="4" placeholder="Describe your character's personality..."></textarea>
+          <span class="char-count"><span id="editPersonaCount">0</span>/500</span>
+        </div>
+      </div>
+
+      <div class="onboarding-footer">
+        <button type="button" id="cancelEditBtn" class="secondary-btn">Cancel</button>
+        <button type="button" id="saveEditBtn" class="primary-btn">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="deleteConfirmModal" class="rpm-modal" hidden>
+    <div class="confirm-panel">
+      <h3 class="confirm-title">Delete Companion?</h3>
+      <p class="confirm-message" id="deleteConfirmMessage">Are you sure you want to delete this companion? This action cannot be undone.</p>
+      <div class="confirm-actions">
+        <button type="button" id="cancelDeleteBtn" class="secondary-btn">Cancel</button>
+        <button type="button" id="confirmDeleteBtn" class="danger-btn">Delete</button>
+      </div>
+    </div>
+  </div>
   <main class="voice-main">
     <div class="voice-panel">
       <div class="voice-avatar" id="avatarRing">
-        <img id="voiceVideo" class="voice-video" src="/assets/nova_avatar.jpg" alt="Lyra avatar" />
+        <video id="voiceVideo" class="voice-video" src="/assets/nova_neutral.mp4" poster="/assets/nova_avatar.jpg" autoplay muted loop playsinline preload="auto" aria-label="Lyra avatar"></video>
+        <img id="voiceFallback" class="voice-fallback" src="/assets/nova_avatar.jpg" alt="Lyra avatar" hidden />
       </div>
       <div class="voice-name">Lyra</div>
       <p class="voice-status" id="voiceStatus">Tap the button to speak</p>
@@ -101,6 +224,823 @@
 
     ensureAvatarVideoReady();
 
+    // Character selection sync
+    let selectedCharacterId = 'nova';
+    let characterImageUrl = '/assets/nova_avatar.jpg';
+    let characters = { predefined: [], custom: [] };
+    let pendingImageId = null;
+    let modalSelectedCharacterId = null;
+
+    // Sidebar elements
+    const sidebar = document.getElementById('companionSidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const closeSidebar = document.getElementById('closeSidebar');
+    const sidebarCharacterList = document.getElementById('sidebarCharacterList');
+    const addCompanionBtn = document.getElementById('addCompanionBtn');
+
+    // Onboarding modal elements
+    const onboardingModal = document.getElementById('onboardingModal');
+    const onboardingClose = document.getElementById('onboardingClose');
+    const characterGrid = document.getElementById('characterGrid');
+    const customCharacterForm = document.getElementById('customCharacterForm');
+    const onboardingFooter = document.getElementById('onboardingFooter');
+    const startChatBtn = document.getElementById('startChatBtn');
+    const skipOnboardingBtn = document.getElementById('skipOnboardingBtn');
+    const backToGrid = document.getElementById('backToGrid');
+    const customName = document.getElementById('customName');
+    const customPersona = document.getElementById('customPersona');
+    const personaCount = document.getElementById('personaCount');
+    const createCustomBtn = document.getElementById('createCustomBtn');
+    const imageDropZone = document.getElementById('imageDropZone');
+    const customImage = document.getElementById('customImage');
+    const imagePreview = document.getElementById('imagePreview');
+    const previewImg = document.getElementById('previewImg');
+    const imagePlaceholder = document.getElementById('imagePlaceholder');
+    const removeImage = document.getElementById('removeImage');
+
+    // Sidebar functions
+    function openSidebar() {
+      sidebar.classList.add('open');
+      sidebar.setAttribute('aria-hidden', 'false');
+      sidebarOverlay.hidden = false;
+      setTimeout(() => sidebarOverlay.classList.add('active'), 10);
+    }
+
+    function closeSidebarPanel() {
+      sidebar.classList.remove('open');
+      sidebar.setAttribute('aria-hidden', 'true');
+      sidebarOverlay.classList.remove('active');
+      setTimeout(() => { sidebarOverlay.hidden = true; }, 300);
+    }
+
+    function renderSidebarCharacters() {
+      if (!sidebarCharacterList) return;
+      sidebarCharacterList.innerHTML = '';
+      const allChars = [...characters.predefined, ...characters.custom];
+      allChars.forEach(char => {
+        const isCustom = !char.is_predefined;
+        const item = document.createElement('div');
+        item.className = 'sidebar-character-item' + (char.id === selectedCharacterId ? ' selected' : '');
+        item.dataset.characterId = char.id;
+        item.innerHTML = `
+          <img class="sidebar-character-avatar" src="${char.image_url}" alt="${char.name}" />
+          <div class="sidebar-character-info">
+            <div class="sidebar-character-name">${char.name}</div>
+            <div class="sidebar-character-persona">${(char.persona || '').slice(0, 60)}${char.persona?.length > 60 ? '...' : ''}</div>
+          </div>
+          ${isCustom ? `
+            <div class="sidebar-character-actions">
+              <button type="button" class="char-action-btn edit-btn" data-action="edit" title="Edit">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button type="button" class="char-action-btn delete-btn" data-action="delete" title="Delete">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </div>
+          ` : ''}
+        `;
+        // Add click handlers
+        const selectArea = item.querySelector('.sidebar-character-info') || item;
+        item.addEventListener('click', (e) => {
+          if (e.target.closest('.char-action-btn')) return;
+          selectCharacterFromSidebar(char.id);
+        });
+        if (isCustom) {
+          const editBtn = item.querySelector('.edit-btn');
+          const deleteBtn = item.querySelector('.delete-btn');
+          if (editBtn) editBtn.addEventListener('click', (e) => { e.stopPropagation(); openEditModal(char); });
+          if (deleteBtn) deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); confirmDeleteCharacter(char); });
+        }
+        sidebarCharacterList.appendChild(item);
+      });
+    }
+
+    async function selectCharacterFromSidebar(charId) {
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        applyGuestHeaders(headers);
+        const res = await fetch('/api/characters/select', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ character_id: charId })
+        });
+        if (!res.ok) throw new Error('Failed to select character');
+        const data = await res.json();
+        if (data.ok && data.selected) {
+          selectedCharacterId = data.selected.id;
+          characterImageUrl = data.selected.image_url;
+          updateVoiceAvatar();
+          updateVoiceName(data.selected.name);
+          renderSidebarCharacters();
+          // Update localStorage cache
+          try {
+            localStorage.setItem('lyraSelectedCharacter', JSON.stringify({
+              id: selectedCharacterId,
+              characters
+            }));
+          } catch {}
+        }
+      } catch (err) {
+        console.error('[voice] select character failed', err);
+      }
+    }
+
+    function updateVoiceName(name) {
+      const nameEl = document.querySelector('.voice-name');
+      if (nameEl) nameEl.textContent = name || 'Lyra';
+    }
+
+    // Onboarding modal functions
+    async function openOnboardingModal() {
+      closeSidebarPanel();
+      modalSelectedCharacterId = null;
+      // Ensure characters are loaded before rendering
+      if (characters.predefined.length === 0) {
+        try {
+          const headers = {};
+          applyGuestHeaders(headers);
+          const res = await fetch('/api/characters', { headers });
+          if (res.ok) {
+            const data = await res.json();
+            characters = {
+              predefined: data.predefined || [],
+              custom: data.custom || []
+            };
+          }
+        } catch (err) {
+          console.error('[voice] load characters for modal failed', err);
+        }
+      }
+      renderCharacterGrid();
+      updateStartButton();
+      if (onboardingModal) onboardingModal.hidden = false;
+      showCharacterGrid();
+    }
+
+    function closeOnboardingModal() {
+      if (onboardingModal) onboardingModal.hidden = true;
+      resetCustomForm();
+    }
+
+    function showCharacterGrid() {
+      if (characterGrid) characterGrid.hidden = false;
+      if (customCharacterForm) customCharacterForm.hidden = true;
+      if (onboardingFooter) onboardingFooter.hidden = false;
+    }
+
+    function showCustomForm() {
+      if (characterGrid) characterGrid.hidden = true;
+      if (customCharacterForm) customCharacterForm.hidden = false;
+      if (onboardingFooter) onboardingFooter.hidden = true;
+    }
+
+    function resetCustomForm() {
+      if (customName) customName.value = '';
+      if (customPersona) customPersona.value = '';
+      if (personaCount) personaCount.textContent = '0';
+      if (createCustomBtn) createCustomBtn.disabled = true;
+      pendingImageId = null;
+      if (imagePreview) imagePreview.hidden = true;
+      if (imagePlaceholder) imagePlaceholder.hidden = false;
+      if (previewImg) previewImg.src = '';
+    }
+
+    function renderCharacterGrid() {
+      if (!characterGrid) return;
+      // Ensure grid is visible
+      characterGrid.hidden = false;
+      characterGrid.innerHTML = '';
+      const allChars = [...characters.predefined, ...characters.custom];
+      allChars.forEach(char => {
+        const isCustom = !char.is_predefined;
+        const card = document.createElement('div');
+        card.className = 'character-card' + (char.id === modalSelectedCharacterId ? ' selected' : '');
+        card.dataset.characterId = char.id;
+        card.innerHTML = `
+          ${isCustom ? `
+            <div class="card-actions">
+              <button type="button" class="card-action-btn edit-btn" title="Edit">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button type="button" class="card-action-btn delete-btn" title="Delete">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </div>
+          ` : ''}
+          <div class="card-avatar"><img src="${char.image_url}" alt="${char.name}" /></div>
+          <div class="card-name">${char.name}</div>
+          <div class="card-persona">${(char.persona || '').slice(0, 80)}${char.persona?.length > 80 ? '...' : ''}</div>
+        `;
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('.card-action-btn')) return;
+          modalSelectedCharacterId = char.id;
+          renderCharacterGrid();
+          updateStartButton();
+        });
+        if (isCustom) {
+          const editBtn = card.querySelector('.edit-btn');
+          const deleteBtn = card.querySelector('.delete-btn');
+          if (editBtn) editBtn.addEventListener('click', (e) => { e.stopPropagation(); openEditModal(char); });
+          if (deleteBtn) deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); confirmDeleteCharacter(char); });
+        }
+        characterGrid.appendChild(card);
+      });
+      // Add create custom card
+      const createCard = document.createElement('div');
+      createCard.className = 'character-card create-custom';
+      createCard.innerHTML = `
+        <div class="create-icon">+</div>
+        <div class="card-name">Create Custom</div>
+        <div class="card-persona">Design your own companion</div>
+      `;
+      createCard.addEventListener('click', showCustomForm);
+      characterGrid.appendChild(createCard);
+    }
+
+    function updateStartButton() {
+      if (startChatBtn) {
+        startChatBtn.disabled = !modalSelectedCharacterId;
+      }
+    }
+
+    function validateCustomForm() {
+      const nameValid = customName && customName.value.trim().length > 0;
+      const personaValid = customPersona && customPersona.value.trim().length > 0;
+      if (createCustomBtn) {
+        createCustomBtn.disabled = !(nameValid && personaValid);
+      }
+    }
+
+    async function uploadImage(file) {
+      if (!file) return null;
+      const formData = new FormData();
+      formData.append('image', file);
+      try {
+        const headers = {};
+        applyGuestHeaders(headers);
+        const res = await fetch('/api/characters/upload-image', {
+          method: 'POST',
+          headers,
+          body: formData
+        });
+        if (!res.ok) throw new Error('Upload failed');
+        const data = await res.json();
+        return data.image_id || null;
+      } catch (err) {
+        console.error('[voice] image upload failed', err);
+        return null;
+      }
+    }
+
+    async function createCustomCharacter() {
+      if (!customName || !customPersona) return;
+      const name = customName.value.trim();
+      const persona = customPersona.value.trim();
+      if (!name || !persona) return;
+
+      createCustomBtn.disabled = true;
+      createCustomBtn.textContent = 'Creating...';
+
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        applyGuestHeaders(headers);
+        const body = { name, persona };
+        if (pendingImageId) body.image_id = pendingImageId;
+
+        const res = await fetch('/api/characters/custom', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error('Failed to create character');
+        const data = await res.json();
+        if (data.ok && data.character) {
+          characters.custom.push(data.character);
+          modalSelectedCharacterId = data.character.id;
+          renderCharacterGrid();
+          renderSidebarCharacters();
+          updateStartButton();
+          showCharacterGrid();
+          resetCustomForm();
+        }
+      } catch (err) {
+        console.error('[voice] create character failed', err);
+      } finally {
+        createCustomBtn.disabled = false;
+        createCustomBtn.textContent = 'Create Character';
+      }
+    }
+
+    // ========== Edit/Delete Character Functions ==========
+
+    // Edit modal elements
+    const editCharacterModal = document.getElementById('editCharacterModal');
+    const editModalClose = document.getElementById('editModalClose');
+    const editCharacterId = document.getElementById('editCharacterId');
+    const editName = document.getElementById('editName');
+    const editPersona = document.getElementById('editPersona');
+    const editPersonaCount = document.getElementById('editPersonaCount');
+    const editImageDropZone = document.getElementById('editImageDropZone');
+    const editImage = document.getElementById('editImage');
+    const editImagePreview = document.getElementById('editImagePreview');
+    const editPreviewImg = document.getElementById('editPreviewImg');
+    const editImagePlaceholder = document.getElementById('editImagePlaceholder');
+    const editRemoveImage = document.getElementById('editRemoveImage');
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    const saveEditBtn = document.getElementById('saveEditBtn');
+
+    // Delete modal elements
+    const deleteConfirmModal = document.getElementById('deleteConfirmModal');
+    const deleteConfirmMessage = document.getElementById('deleteConfirmMessage');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+
+    let editPendingImageId = null;
+    let editOriginalImageUrl = null;
+    let characterToDelete = null;
+
+    function openEditModal(char) {
+      if (!editCharacterModal) return;
+      closeOnboardingModal();
+      closeSidebarPanel();
+
+      editCharacterId.value = char.id;
+      editName.value = char.name || '';
+      editPersona.value = char.persona || '';
+      editPersonaCount.textContent = (char.persona || '').length;
+      editPendingImageId = null;
+      editOriginalImageUrl = char.image_url;
+
+      // Show current image
+      if (char.image_url) {
+        editPreviewImg.src = char.image_url;
+        editImagePreview.hidden = false;
+        editImagePlaceholder.hidden = true;
+      } else {
+        editImagePreview.hidden = true;
+        editImagePlaceholder.hidden = false;
+      }
+
+      editCharacterModal.hidden = false;
+    }
+
+    function closeEditModal() {
+      if (editCharacterModal) editCharacterModal.hidden = true;
+      editPendingImageId = null;
+      editOriginalImageUrl = null;
+    }
+
+    async function saveEditCharacter() {
+      const charId = editCharacterId.value;
+      const name = editName.value.trim();
+      const persona = editPersona.value.trim();
+
+      if (!charId || !name || !persona) return;
+
+      saveEditBtn.disabled = true;
+      saveEditBtn.textContent = 'Saving...';
+
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        applyGuestHeaders(headers);
+        const body = { name, persona };
+        if (editPendingImageId) body.image_id = editPendingImageId;
+
+        const res = await fetch(`/api/characters/custom/${charId}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify(body)
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to update character');
+        }
+
+        const data = await res.json();
+        if (data.ok && data.character) {
+          // Update character in local list
+          const idx = characters.custom.findIndex(c => c.id === charId);
+          if (idx !== -1) {
+            characters.custom[idx] = data.character;
+          }
+
+          // Update avatar if this is the selected character
+          if (selectedCharacterId === charId) {
+            characterImageUrl = data.character.image_url;
+            updateVoiceAvatar();
+            updateVoiceName(data.character.name);
+          }
+
+          renderSidebarCharacters();
+          renderCharacterGrid();
+          closeEditModal();
+
+          // Update localStorage
+          try {
+            localStorage.setItem('lyraSelectedCharacter', JSON.stringify({
+              id: selectedCharacterId,
+              characters
+            }));
+          } catch {}
+        }
+      } catch (err) {
+        console.error('[voice] update character failed', err);
+        alert('Failed to update companion: ' + err.message);
+      } finally {
+        saveEditBtn.disabled = false;
+        saveEditBtn.textContent = 'Save Changes';
+      }
+    }
+
+    async function handleEditImageFile(file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image must be under 5MB');
+        return;
+      }
+      // Show preview
+      const reader = new FileReader();
+      reader.onload = e => {
+        if (editPreviewImg) editPreviewImg.src = e.target.result;
+        if (editImagePreview) editImagePreview.hidden = false;
+        if (editImagePlaceholder) editImagePlaceholder.hidden = true;
+      };
+      reader.readAsDataURL(file);
+      // Upload
+      editPendingImageId = await uploadImage(file);
+    }
+
+    function confirmDeleteCharacter(char) {
+      if (!deleteConfirmModal) return;
+      characterToDelete = char;
+      deleteConfirmMessage.textContent = `Are you sure you want to delete "${char.name}"? This action cannot be undone.`;
+      deleteConfirmModal.hidden = false;
+    }
+
+    function closeDeleteModal() {
+      if (deleteConfirmModal) deleteConfirmModal.hidden = true;
+      characterToDelete = null;
+    }
+
+    async function deleteCharacter() {
+      if (!characterToDelete) return;
+
+      const charId = characterToDelete.id;
+      confirmDeleteBtn.disabled = true;
+      confirmDeleteBtn.textContent = 'Deleting...';
+
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        applyGuestHeaders(headers);
+
+        const res = await fetch(`/api/characters/custom/${charId}`, {
+          method: 'DELETE',
+          headers
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to delete character');
+        }
+
+        const data = await res.json();
+        if (data.ok) {
+          // Remove from local list
+          characters.custom = characters.custom.filter(c => c.id !== charId);
+
+          // If deleted character was selected, switch to default
+          if (selectedCharacterId === charId) {
+            const defaultChar = characters.predefined.find(c => c.id === 'nova') || characters.predefined[0];
+            if (defaultChar) {
+              selectedCharacterId = defaultChar.id;
+              characterImageUrl = defaultChar.image_url;
+              updateVoiceAvatar();
+              updateVoiceName(defaultChar.name);
+            }
+          }
+
+          // If deleted character was selected in modal
+          if (modalSelectedCharacterId === charId) {
+            modalSelectedCharacterId = null;
+            updateStartButton();
+          }
+
+          renderSidebarCharacters();
+          renderCharacterGrid();
+          closeDeleteModal();
+
+          // Update localStorage
+          try {
+            localStorage.setItem('lyraSelectedCharacter', JSON.stringify({
+              id: selectedCharacterId,
+              characters
+            }));
+          } catch {}
+        }
+      } catch (err) {
+        console.error('[voice] delete character failed', err);
+        alert('Failed to delete companion: ' + err.message);
+      } finally {
+        confirmDeleteBtn.disabled = false;
+        confirmDeleteBtn.textContent = 'Delete';
+      }
+    }
+
+    // Edit modal event listeners
+    if (editModalClose) editModalClose.addEventListener('click', closeEditModal);
+    if (cancelEditBtn) cancelEditBtn.addEventListener('click', closeEditModal);
+    if (saveEditBtn) saveEditBtn.addEventListener('click', saveEditCharacter);
+    if (editPersona) {
+      editPersona.addEventListener('input', () => {
+        if (editPersonaCount) editPersonaCount.textContent = editPersona.value.length;
+      });
+    }
+    if (editCharacterModal) {
+      editCharacterModal.addEventListener('click', e => {
+        if (e.target === editCharacterModal) closeEditModal();
+      });
+    }
+
+    // Edit image handling
+    if (editImageDropZone && editImage) {
+      editImageDropZone.addEventListener('click', () => editImage.click());
+      editImageDropZone.addEventListener('dragover', e => {
+        e.preventDefault();
+        editImageDropZone.classList.add('dragover');
+      });
+      editImageDropZone.addEventListener('dragleave', () => {
+        editImageDropZone.classList.remove('dragover');
+      });
+      editImageDropZone.addEventListener('drop', async e => {
+        e.preventDefault();
+        editImageDropZone.classList.remove('dragover');
+        const file = e.dataTransfer?.files?.[0];
+        if (file && file.type.startsWith('image/')) {
+          await handleEditImageFile(file);
+        }
+      });
+      editImage.addEventListener('change', async () => {
+        const file = editImage.files?.[0];
+        if (file) await handleEditImageFile(file);
+      });
+    }
+
+    if (editRemoveImage) {
+      editRemoveImage.addEventListener('click', e => {
+        e.stopPropagation();
+        editPendingImageId = null;
+        if (editPreviewImg) editPreviewImg.src = editOriginalImageUrl || '';
+        if (editOriginalImageUrl) {
+          editImagePreview.hidden = false;
+          editImagePlaceholder.hidden = true;
+        } else {
+          editImagePreview.hidden = true;
+          editImagePlaceholder.hidden = false;
+        }
+        if (editImage) editImage.value = '';
+      });
+    }
+
+    // Delete modal event listeners
+    if (cancelDeleteBtn) cancelDeleteBtn.addEventListener('click', closeDeleteModal);
+    if (confirmDeleteBtn) confirmDeleteBtn.addEventListener('click', deleteCharacter);
+    if (deleteConfirmModal) {
+      deleteConfirmModal.addEventListener('click', e => {
+        if (e.target === deleteConfirmModal) closeDeleteModal();
+      });
+    }
+
+    async function confirmCharacterSelection() {
+      if (!modalSelectedCharacterId) return;
+      await selectCharacterFromSidebar(modalSelectedCharacterId);
+      closeOnboardingModal();
+    }
+
+    // Event listeners for sidebar
+    if (sidebarToggle) sidebarToggle.addEventListener('click', openSidebar);
+    if (closeSidebar) closeSidebar.addEventListener('click', closeSidebarPanel);
+    if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeSidebarPanel);
+    if (addCompanionBtn) addCompanionBtn.addEventListener('click', openOnboardingModal);
+
+    // Make avatar clickable to open sidebar
+    if (ring) {
+      ring.classList.add('clickable');
+      ring.addEventListener('click', openSidebar);
+    }
+
+    // Event listeners for onboarding modal
+    if (onboardingClose) onboardingClose.addEventListener('click', closeOnboardingModal);
+    if (skipOnboardingBtn) skipOnboardingBtn.addEventListener('click', closeOnboardingModal);
+    if (startChatBtn) startChatBtn.addEventListener('click', confirmCharacterSelection);
+    if (backToGrid) backToGrid.addEventListener('click', showCharacterGrid);
+
+    // Custom form event listeners
+    if (customName) customName.addEventListener('input', validateCustomForm);
+    if (customPersona) {
+      customPersona.addEventListener('input', () => {
+        if (personaCount) personaCount.textContent = customPersona.value.length;
+        validateCustomForm();
+      });
+    }
+    if (createCustomBtn) createCustomBtn.addEventListener('click', createCustomCharacter);
+
+    // Image upload handling
+    if (imageDropZone && customImage) {
+      imageDropZone.addEventListener('click', () => customImage.click());
+      imageDropZone.addEventListener('dragover', e => {
+        e.preventDefault();
+        imageDropZone.classList.add('dragover');
+      });
+      imageDropZone.addEventListener('dragleave', () => {
+        imageDropZone.classList.remove('dragover');
+      });
+      imageDropZone.addEventListener('drop', async e => {
+        e.preventDefault();
+        imageDropZone.classList.remove('dragover');
+        const file = e.dataTransfer?.files?.[0];
+        if (file && file.type.startsWith('image/')) {
+          await handleImageFile(file);
+        }
+      });
+      customImage.addEventListener('change', async () => {
+        const file = customImage.files?.[0];
+        if (file) await handleImageFile(file);
+      });
+    }
+
+    async function handleImageFile(file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image must be under 5MB');
+        return;
+      }
+      // Show preview
+      const reader = new FileReader();
+      reader.onload = e => {
+        if (previewImg) previewImg.src = e.target.result;
+        if (imagePreview) imagePreview.hidden = false;
+        if (imagePlaceholder) imagePlaceholder.hidden = true;
+      };
+      reader.readAsDataURL(file);
+      // Upload
+      pendingImageId = await uploadImage(file);
+    }
+
+    if (removeImage) {
+      removeImage.addEventListener('click', e => {
+        e.stopPropagation();
+        pendingImageId = null;
+        if (previewImg) previewImg.src = '';
+        if (imagePreview) imagePreview.hidden = true;
+        if (imagePlaceholder) imagePlaceholder.hidden = false;
+        if (customImage) customImage.value = '';
+      });
+    }
+
+    // Close modal on background click
+    if (onboardingModal) {
+      onboardingModal.addEventListener('click', e => {
+        if (e.target === onboardingModal) closeOnboardingModal();
+      });
+    }
+
+    async function loadSelectedCharacter() {
+      // Try localStorage first for quick restore
+      try {
+        const cached = localStorage.getItem('lyraSelectedCharacter');
+        if (cached) {
+          const data = JSON.parse(cached);
+          selectedCharacterId = data.id || 'nova';
+          if (data.characters) {
+            characters = data.characters;
+          }
+          const allChars = [...(data.characters?.predefined || []), ...(data.characters?.custom || [])];
+          const char = allChars.find(c => c.id === selectedCharacterId);
+          if (char) {
+            characterImageUrl = char.image_url;
+            updateVoiceAvatar();
+            updateVoiceName(char.name);
+            renderSidebarCharacters();
+          }
+        }
+      } catch {}
+
+      // Fetch from server to ensure sync
+      try {
+        const headers = {};
+        applyGuestHeaders(headers);
+        const res = await fetch('/api/characters', { headers });
+        if (!res.ok) return;
+        const data = await res.json();
+        selectedCharacterId = data.selected_id || 'nova';
+        characters = {
+          predefined: data.predefined || [],
+          custom: data.custom || []
+        };
+        const allChars = [...characters.predefined, ...characters.custom];
+        const char = allChars.find(c => c.id === selectedCharacterId);
+        if (char) {
+          characterImageUrl = char.image_url;
+          updateVoiceAvatar();
+          updateVoiceName(char.name);
+        }
+        renderSidebarCharacters();
+        // Update localStorage cache
+        try {
+          localStorage.setItem('lyraSelectedCharacter', JSON.stringify({
+            id: selectedCharacterId,
+            characters
+          }));
+        } catch {}
+      } catch (err) {
+        console.error('[voice] load character failed', err);
+      }
+    }
+
+    // Emotion-based video switching state
+    let currentVideoState = 'neutral';
+    let emotionPoll = null;
+
+    function updateVoiceAvatar() {
+      const video = document.getElementById('voiceVideo');
+      const fallback = document.getElementById('voiceFallback');
+      if (!video) return;
+
+      // Get video URLs for current character
+      const allChars = [...characters.predefined, ...characters.custom];
+      const char = allChars.find(c => c.id === selectedCharacterId);
+      const videoUrls = char?.video_urls || {};
+      const neutralUrl = videoUrls.neutral;
+
+      if (neutralUrl) {
+        // Character has videos - use video element
+        video.src = neutralUrl;
+        video.poster = characterImageUrl;
+        video.hidden = false;
+        if (fallback) fallback.hidden = true;
+        video.load();
+        video.play().catch(() => {});
+      } else {
+        // No videos - use fallback image
+        video.hidden = true;
+        if (fallback) {
+          fallback.src = characterImageUrl;
+          fallback.hidden = false;
+        }
+      }
+      currentVideoState = 'neutral';
+    }
+
+    function switchVoiceVideo(videoUrl, videoState) {
+      const video = document.getElementById('voiceVideo');
+      const fallback = document.getElementById('voiceFallback');
+      if (!video || currentVideoState === videoState) return;
+
+      currentVideoState = videoState;
+
+      // If URL is an image (fallback), show the image instead
+      if (videoUrl && (videoUrl.endsWith('.jpg') || videoUrl.endsWith('.png'))) {
+        video.hidden = true;
+        if (fallback) {
+          fallback.src = videoUrl;
+          fallback.hidden = false;
+        }
+        return;
+      }
+
+      // Show video
+      if (fallback) fallback.hidden = true;
+      video.hidden = false;
+      video.src = videoUrl;
+      video.load();
+      video.play().catch(() => {});
+    }
+
+    async function fetchVoiceEmotion() {
+      try {
+        const headers = {};
+        applyGuestHeaders(headers);
+        const r = await fetch('/api/emotion', { headers });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (d.videoUrl && d.videoState) {
+          switchVoiceVideo(d.videoUrl, d.videoState);
+        }
+      } catch (err) {
+        console.warn('[emotion] voice fetch failed', err);
+      }
+    }
+
+    function startEmotionPolling() {
+      if (emotionPoll) return;
+      fetchVoiceEmotion();
+      emotionPoll = setInterval(fetchVoiceEmotion, 1500);
+    }
+
+    // Load character on init
+    loadSelectedCharacter();
+    startEmotionPolling();
+
     let recognition = null;
     let listening = false;
     let awaitingReply = false;
@@ -169,15 +1109,16 @@
 
     function ensureAvatarVideoReady() {
       if (!avatarVideo) return;
-      // Image doesn't need special initialization
+      avatarVideo.muted = true;
+      avatarVideo.loop = true;
       if (!avatarVideo.dataset.state) {
         avatarVideo.dataset.state = 'idle';
       }
+      avatarVideo.play().catch(() => {});
     }
 
     function setAvatarTalking(on) {
       if (!avatarVideo) return;
-      // Image is static, just update state for styling purposes
       avatarVideo.dataset.state = on ? 'talking' : 'idle';
     }
     async function sendToAgent(text, opts) {

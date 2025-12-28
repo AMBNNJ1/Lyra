@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(find:*)",
+      "Bash(tree:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python:*)",
+      "Bash(dir:*)",
+      "Bash(copy \"d:\\\\NewNeuro\\\\web\\\\assets\\\\nova_avatar.jpg\" \"d:\\\\NewNeuro\\\\web\\\\assets\\\\sage_avatar.jpg\")",
+      "Bash(copy:*)",
+      "Bash(.js$ \")",
+      "Bash(python -c:*)",
+      "Bash(ls:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(git checkout:*)",
+      "Bash(git reset:*)"
+    ]
+  }
+}

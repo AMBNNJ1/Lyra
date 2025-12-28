@@ -12,6 +12,11 @@ sentiment:
 
 tts:
   enable: true
+  # Provider: kokoro (local) | runpod (serverless)
+  provider: kokoro
+  # RunPod TTS endpoint (when provider=runpod)
+  # Set RUNPOD_TTS_ENDPOINT env var or specify here
+  runpod_endpoint_id: ""
   kokoro:
     # See https://github.com/hexgrad/kokoro and HF: hexgrad/Kokoro-82M
     # Voices: e.g., af_heart (English female), mf_rap (male), etc.
@@ -47,19 +52,25 @@ models:
   cpu_safe: true # if true, skip heavy models on CPU
   llm:
     enable: false
-    # Option A: Use a local OpenAI-compatible server (LM Studio/Ollama/vLLM)
-    provider: openai_compat   # openai_compat | transformers
-    base_url: http://localhost:1234/v1  # LM Studio default
-    id: gemma-3-4b@q4_k_m             # LM Studio/Ollama model id
+    # Provider: openai_compat (LM Studio/Ollama) | transformers (local) | runpod (serverless)
+    provider: openai_compat
+    # RunPod LLM endpoint (when provider=runpod)
+    # Set RUNPOD_LLM_ENDPOINT env var or specify here
+    runpod_endpoint_id: ""
+    base_url: http://localhost:1234/v1  # LM Studio default (for openai_compat)
+    id: gemma-3-4b                     # Model id for LM Studio/Ollama/RunPod
     local_only: true                  # do not hit the network
     revision: null                    # optional local revision tag
     max_new_tokens: 128
     temperature: 0.7
     thinking: false
   vlm:
-    enable: false
-    # VLM disabled - remove to reduce dependencies
-    provider: transformers
-    id: null
+    enable: true
+    # For vision locally, prefer Transformers with a local model directory.
+    # Many OpenAI-compatible servers don't support vision yet.
+    provider: transformers   # openai_compat | transformers
+    # base_url: http://localhost:1234/v1
+    # id when using transformers should be a local folder path:
+    id: D:/models/Qwen/Qwen2.5-VL-7B-Instruct
     local_only: true
     max_new_tokens: 128

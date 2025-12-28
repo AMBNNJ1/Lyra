@@ -1,0 +1,15 @@
+{
+  "selected_character_id": "sage",
+  "custom_characters": [
+    {
+      "id": "custom-87c378ec141f",
+      "name": "Lora",
+      "persona": "sfasdfasdf",
+      "image_url": "/uploads/238e13ad9220466b.jpg",
+      "is_predefined": false,
+      "creator_id": "guest-5f44ab9c-8eb4-425f-a37b-f75fa70de30c",
+      "video_urls": {}
+    }
+  ],
+  "onboarding_completed": true
+}

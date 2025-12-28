@@ -13,6 +13,9 @@ _EMPTY_CONTEXT: Dict[str, Any] = {
     "general": [],
 }
 
+MAX_MEMORY_LABEL_LENGTH = 64
+MAX_MEMORY_VALUE_LENGTH = 4096
+
 
 class MemoryClient:
     def __init__(self, provider: str | None = None, user_id: str | None = None) -> None:
@@ -66,7 +69,7 @@ class MemoryClient:
         self.persona_text = persona
         try:
             self.client.add([{"role": "system", "content": persona}], user_id=self.user_id, metadata={"label": "persona"})
-        except Exception as exc:
+        except (ConnectionError, TimeoutError, ValueError, RuntimeError) as exc:
             self._dbg(f"ensure_persona failed: {exc}")
 
     def ensure_user(self, user_label: str) -> Optional[str]:
@@ -75,7 +78,7 @@ class MemoryClient:
         self.user_id = self._sanitize_user(user_label)
         try:
             self.client.add([{"role": "system", "content": user_label}], user_id=self.user_id, metadata={"label": "user"})
-        except Exception as exc:
+        except (ConnectionError, TimeoutError, ValueError, RuntimeError) as exc:
             self._dbg(f"ensure_user failed: {exc}")
         else:
             self._ensure_base_user()
@@ -86,7 +89,7 @@ class MemoryClient:
             filters = {"OR": [{"user_id": self.user_id}]}
             data = self.client.search(query or "", filters=filters, user_id=self.user_id, limit=24, version="v2")
             return [self._format_memory(item) for item in data]
-        except Exception as exc:
+        except (ConnectionError, TimeoutError, ValueError, RuntimeError) as exc:
             self._dbg(f"search failed: {exc}")
             return []
 
@@ -102,9 +105,16 @@ class MemoryClient:
         value = (value or "").strip()
         if not value:
             return
+        # Validate and sanitize inputs
+        if len(label) > MAX_MEMORY_LABEL_LENGTH:
+            label = label[:MAX_MEMORY_LABEL_LENGTH]
+        if len(value) > MAX_MEMORY_VALUE_LENGTH:
+            value = value[:MAX_MEMORY_VALUE_LENGTH]
+        # Only allow alphanumeric, underscore, hyphen for label
+        label = re.sub(r"[^a-z0-9_\-]", "", label) or "memory"
         try:
             self.client.add([{"role": "assistant", "content": value}], user_id=self.user_id, metadata={"label": label})
-        except Exception as exc:
+        except (ConnectionError, TimeoutError, ValueError, RuntimeError) as exc:
             self._dbg(f"write failed: {exc}")
 
     def log_interaction(self, user_text: str, assistant_text: str) -> None:
@@ -119,7 +129,7 @@ class MemoryClient:
             messages.append({"role": "assistant", "content": assistant_text})
         try:
             self.client.add(messages, user_id=self.user_id)
-        except Exception as exc:
+        except (ConnectionError, TimeoutError, ValueError, RuntimeError) as exc:
             self._dbg(f"log_interaction failed: {exc}")
 
     def retrieve_context(self, query: str, budget_tokens: int = 1024) -> Dict[str, Any]:
@@ -167,7 +177,8 @@ class MemoryClient:
             items = self.find_items(q, labels=labels, limit=int(args.get("k", 12) or 12))
             try:
                 return True, json.dumps([{"label": it.get("label"), "text": it.get("value")} for it in items])
-            except Exception:
+            except (TypeError, ValueError) as exc:
+                self._dbg(f"JSON serialization failed in execute_tool: {exc}")
                 return True, f"found:{len(items)}"
         return False, "unsupported"
 
@@ -183,7 +194,7 @@ class MemoryClient:
             filters = {"OR": [{"user_id": user_id or self.user_id}]}
             data = self.client.search("", filters=filters, version="v2")
             return {"user_id": user_id or self.user_id, "items": [self._format_memory(item) for item in data]}
-        except Exception as exc:
+        except (ConnectionError, TimeoutError, ValueError, RuntimeError) as exc:
             self._dbg(f"export_json failed: {exc}")
             return {"user_id": user_id or self.user_id, "items": []}
 
@@ -217,8 +228,8 @@ class MemoryClient:
                     summary = f"favorite {cat}: {val}"
                     self.write("preferences", summary)
                     captures.append(("preferences", summary))
-        except Exception:
-            pass
+        except (re.error, ConnectionError, TimeoutError) as exc:
+            self._dbg(f"Autocapture favorite pattern failed: {exc}")
 
         rules: List[Tuple[str, str, re.Pattern[str]]] = [
             ("profile", "name", re.compile(r"\b(my name is|call me)\s+([A-Z][A-Za-z\-']+)", re.I)),
@@ -236,7 +247,8 @@ class MemoryClient:
             val = m.group(m.lastindex) if m.lastindex else m.group(0)
             try:
                 sval = str(val).replace(" and ", "; ").replace(" also ", "; ")
-            except Exception:
+            except (TypeError, AttributeError) as exc:
+                self._dbg(f"Autocapture string conversion failed: {exc}")
                 sval = val
             summary = f"{kind}: {sval}".strip()
             self.write(label, summary)

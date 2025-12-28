@@ -1,7 +1,10 @@
-﻿requests
+requests
 httpx
 websockets
 flask
+fastapi
+uvicorn
+pydantic-settings
 python-dotenv
 PyYAML
 rapidfuzz
@@ -11,3 +14,7 @@ qdrant-client
 python-jose[cryptography]
 pytest
 mem0ai>=0.1.117
+# RunPod serverless client (optional, for GPU offloading)
+runpod>=1.6.0
+# Image processing for character avatar uploads
+Pillow>=10.0.0

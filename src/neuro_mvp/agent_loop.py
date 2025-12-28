@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 import json
@@ -9,6 +10,56 @@ import time
 from .memory import MemoryClient
 from .web_search_tool import web_search_tool
 import os
+from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
+
+# URL allowlist for browse() - only public HTTP(S) URLs allowed
+BROWSE_ALLOWED_SCHEMES = {"http", "https"}
+BROWSE_BLOCKED_HOSTS = {
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+    "::1",
+    "[::1]",
+    "metadata.google.internal",
+    "169.254.169.254",  # AWS/GCP metadata endpoint
+}
+BROWSE_BLOCKED_HOST_PATTERNS = [
+    r"^10\.",            # 10.0.0.0/8
+    r"^172\.(1[6-9]|2[0-9]|3[0-1])\.",  # 172.16.0.0/12
+    r"^192\.168\.",      # 192.168.0.0/16
+    r"\.local$",         # mDNS
+    r"\.internal$",      # internal domains
+]
+
+
+def _is_url_allowed(url: str) -> tuple[bool, str]:
+    """Validate URL against SSRF blocklist. Returns (allowed, reason)."""
+    try:
+        parsed = urlparse(url)
+    except (ValueError, TypeError):
+        return False, "invalid URL format"
+
+    if parsed.scheme.lower() not in BROWSE_ALLOWED_SCHEMES:
+        return False, f"scheme '{parsed.scheme}' not allowed"
+
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return False, "missing hostname"
+
+    if host in BROWSE_BLOCKED_HOSTS:
+        return False, f"host '{host}' is blocked"
+
+    for pattern in BROWSE_BLOCKED_HOST_PATTERNS:
+        if re.search(pattern, host, re.I):
+            return False, f"host '{host}' matches blocked pattern"
+
+    # Block URLs with credentials
+    if parsed.username or parsed.password:
+        return False, "URLs with credentials not allowed"
+
+    return True, ""
 
 
 @dataclass
@@ -64,7 +115,8 @@ class ToolRegistry:
             if isinstance(res, (dict, list)):
                 return Observation(text=json.dumps(res)[:4000], ok=True, meta={"raw": res})
             return Observation(text=str(res)[:4000], ok=True)
-        except Exception as e:  # noqa: BLE001 - surface tool errors as observations
+        except (TypeError, ValueError, ConnectionError, TimeoutError, OSError) as e:
+            logger.debug("Tool %s execution failed: %s", name, e)
             return Observation(text=f"error: {e}", ok=False)
 
 
@@ -77,13 +129,24 @@ def build_tool_registry(mem: MemoryClient) -> ToolRegistry:
         return web_search_tool(query, k=k)
 
     def browse(url: str, max_chars: int = 4000) -> str:
-        r = httpx.get(url, timeout=15, headers={"User-Agent": "Nova/1.0"})
+        allowed, reason = _is_url_allowed(url)
+        if not allowed:
+            return f"URL blocked: {reason}"
+        r = httpx.get(url, timeout=15, headers={"User-Agent": "Nova/1.0"}, follow_redirects=False)
+        # Check for redirects to blocked URLs
+        if r.is_redirect:
+            redirect_url = r.headers.get("location", "")
+            redirect_allowed, redirect_reason = _is_url_allowed(redirect_url)
+            if not redirect_allowed:
+                return f"Redirect URL blocked: {redirect_reason}"
+            r = httpx.get(redirect_url, timeout=15, headers={"User-Agent": "Nova/1.0"}, follow_redirects=False)
         r.raise_for_status()
         txt = r.text
         try:
             import trafilatura  # type: ignore
             body = trafilatura.extract(txt, include_comments=False, favor_recall=True) or ""
-        except Exception:
+        except (ImportError, ValueError, TypeError) as exc:
+            logger.debug("Trafilatura extraction failed, using regex fallback: %s", exc)
             body = re.sub(r"<script[\s\S]*?</script>", " ", txt, flags=re.I)
             body = re.sub(r"<style[\s\S]*?</style>", " ", body, flags=re.I)
             body = re.sub(r"<[^>]+>", " ", body)
@@ -144,7 +207,8 @@ class Controller:
     def retrieve_memories(self, goal: Goal, task: Task) -> List[Dict[str, Any]]:
         try:
             ctx = self.mem.retrieve_context(goal.text, budget_tokens=512)
-        except Exception:
+        except (ConnectionError, TimeoutError, ValueError) as exc:
+            logger.debug("Memory retrieval for goal failed: %s", exc)
             return []
         return (ctx.get("long_term") or [])[:6]
 
@@ -194,8 +258,8 @@ class Controller:
             if isinstance(js, dict) and js.get("action"):
                 a = js["action"]
                 return Action(a.get("name", ""), a.get("args", {}))
-        except Exception:
-            pass
+        except (json.JSONDecodeError, TypeError, KeyError) as exc:
+            logger.debug("JSON action parsing failed: %s", exc)
         # ReAct-style
         m = re.search(r"Action:\s*([A-Z_]+)\s*Action Input:\s*(.+)", str(out), re.I | re.S)
         if m:
@@ -242,8 +306,8 @@ class Controller:
                 return
             if obs.ok and len((obs.text or "")) > 80:
                 self.mem.add_label_value("facts", obs.text[:512], replace=False)
-        except Exception:
-            pass
+        except (ConnectionError, TimeoutError, ValueError, TypeError) as exc:
+            logger.debug("Failed to store long-term memory: %s", exc)
 
     def criticize(self, goal: Goal, task: Task, obs: Observation) -> Critique:
         ok = obs.ok
