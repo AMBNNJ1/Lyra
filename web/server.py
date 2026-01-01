@@ -42,18 +42,19 @@ def load_config() -> dict:
     return {}
 
 
-def _load_clerk_verifier() -> ClerkVerifier:
+def _load_clerk_verifier() -> ClerkVerifier | None:
     try:
         return ClerkVerifier.from_env()
-    except RuntimeError as exc:  # noqa: BLE001
-        raise RuntimeError(
-            "Clerk authentication is not configured. Set CLERK_ISSUER and/or CLERK_JWKS_URL env vars."
-        ) from exc
+    except RuntimeError:
+        return None
 
 
 load_dotenv()  # ensure OPENAI_BASE_URL, MEM0_BASE_URL, etc.
 
 CLERK = _load_clerk_verifier()
+if CLERK is None:
+    import logging
+    logging.warning("Clerk authentication not configured. Set CLERK_ISSUER and/or CLERK_JWKS_URL env vars.")
 CLERK_PUBLISHABLE_KEY = os.getenv("CLERK_PUBLISHABLE_KEY")
 CLERK_LOGIN_DISABLED = os.getenv("CLERK_LOGIN_DISABLED", "true").lower() in ("true", "1", "yes")
 
@@ -247,7 +248,7 @@ def _process_uploaded_image(file_storage) -> tuple:
 def _get_user_id_from_request() -> str:
     """Extract user ID from request (authenticated or guest)."""
     token = _extract_bearer_token()
-    if token:
+    if token and CLERK is not None:
         try:
             claims = CLERK.verify(token)
             return claims.get("sub") or claims.get("user_id") or "default"
@@ -427,6 +428,8 @@ def _extract_bearer_token() -> str | None:
 
 
 def require_clerk_user() -> str:
+    if CLERK is None:
+        abort(503, description="Clerk authentication not configured")
     token = _extract_bearer_token()
     if not token:
         abort(401, description="Missing Clerk session token")
@@ -447,6 +450,13 @@ def _before_request() -> None:
     ensure_base_config()
     # VOICE_MODE_DISABLED: TTS warm-up call commented out
     # _kickoff_tts_warm()
+
+
+@app.route("/health", methods=["GET"])
+@app.route("/healthz", methods=["GET"])
+def health_check():
+    """Health check endpoint for Railway/container orchestrators."""
+    return jsonify({"status": "healthy"}), 200
 
 
 @app.route("/api/auth/config", methods=["GET"])
