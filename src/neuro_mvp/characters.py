@@ -42,7 +42,7 @@ PREDEFINED_CHARACTERS: Dict[str, Character] = {
         image_url="/assets/nova_avatar.jpg",
         is_predefined=True,
         video_urls={
-            "neutral": "/assets/nova_neutral.mp4",
+            "neutral": "/assets/nova_video.mp4",
             "happy": "/assets/nova_happy.mp4",
             "sad": "/assets/nova_sad.mp4",
             "anxious": "/assets/nova_anxious.mp4",
