@@ -1,11 +1,11 @@
-# Memory Conversion (Short-Term → Long-Term)
+# Memory Conversion (Short-Term ? Long-Term)
 
-This document describes how conversational short-term memory should be converted into long-term memory in this repo, aligning with the principles from the attached paper on Short-Term vs Long-Term memory in conversational AI. It fits the existing code paths in `src/neuro_mvp/memory.py`, `src/neuro_mvp/memory_local.py`, `src/neuro_mvp/memory_qdrant.py`, `src/neuro_mvp/memory_auto.py`, and the CLI/scripts under `tools/` and `scripts/`.
+This document describes how conversational short-term memory should be converted into long-term memory in this repo, aligning with the principles from the attached paper on Short-Term vs Long-Term memory in conversational AI. It fits the existing code paths in `src/neuro_mvp/memory.py`, `src/neuro_mvp/memory_local.py`, `src/neuro_mvp/memory_auto.py`, and the CLI/scripts under `tools/` and `scripts/`.
 
 ## Definitions (This Repo)
 
 - Short-Term (ST):
-  - Rolling window of recent turns plus the rolling working summary stored in SQLite (`working_summary` table for local; `working_summary` label for Qdrant).
+  - Rolling window of recent turns plus the rolling working summary stored in SQLite (`working_summary` table for local) or via Mem0 service (`working_summary` label).
   - Ephemeral state used to ground the next reply. Not all ST content should persist.
 - Long-Term (LT):
   - Persistent items in `memory_items` with types/labels: `episodic`, `semantic` (facts), `profile`, `preferences`, `goals`, `persona`, and `general`.
@@ -14,13 +14,13 @@ This document describes how conversational short-term memory should be converted
 ## Conversion Goals
 
 - Preserve durable, reusable knowledge while keeping context small and relevant.
-- Promote stable patterns (e.g., user preferences, goals) from ST → LT.
+- Promote stable patterns (e.g., user preferences, goals) from ST ? LT.
 - Store episodic highlights as compact summaries, not raw transcripts.
 - Avoid duplication; decay or compress low-utility items over time.
 
 ## Principles Applied
 
-- Capacity is limited; ST holds only what’s needed for immediate grounding. LT stores compact, high-utility items.
+- Capacity is limited; ST holds only what's needed for immediate grounding. LT stores compact, high-utility items.
 - Conversion is gated by importance, stability (recurrence), and novelty (not already covered by an LT item).
 - Consolidation is periodic and event-driven, not constant. It merges duplicates, promotes stable facts, and decays stale ones.
 
@@ -33,28 +33,28 @@ This document describes how conversational short-term memory should be converted
 
 2) Deduplicate and route
    - Use lexical similarity + optional vector similarity (if embeddings enabled) to detect near-duplicates (`dedup_lexical_threshold`, `dedup_vector_threshold`).
-   - Route by type → label mapping:
-     - user → `profile` or `preferences`
-     - goals → `goals`
-     - general → `general` (optional from auto, default off)
-     - else → `facts` (semantic)
+   - Route by type ? label mapping:
+     - user ? `profile` or `preferences`
+     - goals ? `goals`
+     - general ? `general` (optional from auto, default off)
+     - else ? `facts` (semantic)
 
 3) Promotion and consolidation (batch/periodic)
    - Merge near-duplicates; increment importance of merged items and keep the most informative phrasing.
-   - Promote patterns: if similar statements appear K times across sessions, synthesize a single semantic fact (e.g., from multiple episodes → one `facts` line).
-   - Decay: gradually lower importance for older items unless they’re pinned by recurrence or high base importance.
+   - Promote patterns: if similar statements appear K times across sessions, synthesize a single semantic fact (e.g., from multiple episodes ? one `facts` line).
+   - Decay: gradually lower importance for older items unless they're pinned by recurrence or high base importance.
 
 4) Retrieval and feedback
    - At query time, fetch relevant persona, user facts, working summary, and top LT items.
    - If retrieval repeatedly surfaces the same item, consider pinning or increasing its base importance.
 
-## What’s Already Implemented Here
+## What's Already Implemented Here
 
 - ST working summary storage and episodic snippetting
-  - Local: `working_summary` table; Qdrant: `working_summary` label.
+  - Local: `working_summary` table; Mem0: `working_summary` label.
   - `MemoryClient.log_interaction()` updates working summary and appends a compact episodic line.
 - Auto extraction per turn
-  - `src/neuro_mvp/memory_auto.py` generates candidate memory entries via LLM; regex autocapture for name, pronouns, likes, location, and “my favorite X is Y”.
+  - `src/neuro_mvp/memory_auto.py` generates candidate memory entries via LLM; regex autocapture for name, pronouns, likes, location, and "my favorite X is Y".
 - Dedup and importance
   - Local SQLite path includes lexical + optional embedding dedup; configurable thresholds in `LocalMemoryConfig`.
 - Nightly consolidation & decay
@@ -63,7 +63,7 @@ This document describes how conversational short-term memory should be converted
 
 ## Recommended Enhancements (Targeted to This Repo)
 
-- Promotion rules (episodic → semantic):
+- Promotion rules (episodic ? semantic):
   - When K similar episodic lines appear (e.g., K=3) across sessions, synthesize a single `facts` record and mark the older episodic items as consolidated (keep last for traceability).
   - If an item is referenced in retrieval > N times over M days, bump its importance.
 - Stability detection:
@@ -86,8 +86,8 @@ This document describes how conversational short-term memory should be converted
 1) Add promotion gates to consolidate (local backend)
    - File: `src/neuro_mvp/memory_local.py`
    - Extend `consolidate()` to:
-     - Group items by label ∈ {`episode`, `facts`, `preferences`, `profile`} and cluster by lexical/vector sim.
-     - For clusters of size ≥ `MEMORY_PROMOTE_MIN_MENTIONS`, synthesize one semantic `facts` text (e.g., “User prefers X for Y”), set importance to max(cluster)+1, insert/update via `_upsert_item()`.
+     - Group items by label ? {`episode`, `facts`, `preferences`, `profile`} and cluster by lexical/vector sim.
+     - For clusters of size ? `MEMORY_PROMOTE_MIN_MENTIONS`, synthesize one semantic `facts` text (e.g., "User prefers X for Y"), set importance to max(cluster)+1, insert/update via `_upsert_item()`.
      - Mark merged episodic items as consolidated (e.g., `active=0`) except the newest; keep provenance in `meta`.
      - Preserve global persona; never auto-change it.
 
@@ -96,7 +96,7 @@ This document describes how conversational short-term memory should be converted
    - Read env vars for promotion thresholds and pass into `LocalMemoryConfig` (add fields if needed).
    - Surface a `mem.consolidate()` call site:
      - Batch: continue nightly via `scripts/schedule_memory_consolidation.ps1`.
-     - Optional: add a lightweight “every N turns” hook in `run_agent.py` (increment a counter and call `.consolidate()` when `N` is reached).
+     - Optional: add a lightweight "every N turns" hook in `run_agent.py` (increment a counter and call `.consolidate()` when `N` is reached).
 
 3) Improve auto extractor payload
    - File: `src/neuro_mvp/memory_auto.py`
@@ -109,7 +109,7 @@ This document describes how conversational short-term memory should be converted
 
 5) Metrics and sanity checks
    - Count duplicates merged, facts promoted, and items decayed per run; log to console.
-   - Add `tools/memory_dashboard.py` views for “recent promotions” and “top facts by importance” (optional enhancement).
+   - Add `tools/memory_dashboard.py` views for "recent promotions" and "top facts by importance" (optional enhancement).
 
 6) Config and docs
    - Update `.env.example` to show promotion knobs and comments.
@@ -120,7 +120,7 @@ This document describes how conversational short-term memory should be converted
 - Keep auto-capture strict (`importance >= 6`).
 - Do not auto-write `persona` or `general` from LLM extraction.
 - Dedup aggressively; prefer one compact `facts` item over many similar episodic lines.
-- Summarize, don’t store raw transcripts, unless explicitly needed for debugging.
+- Summarize, don't store raw transcripts, unless explicitly needed for debugging.
 
 ## KPIs to Watch
 
@@ -135,4 +135,3 @@ This document describes how conversational short-term memory should be converted
   - `python tools/memory_cli.py consolidate`
 - Nightly schedule on Windows (PowerShell, Admin may be required):
   - `scripts/schedule_memory_consolidation.ps1 -Time 02:30 -TaskName NeuroMemoryConsolidate`
-

@@ -18,7 +18,11 @@
       "Bash(git pull:*)",
       "Bash(git stash:*)",
       "Bash(git checkout:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(git push)",
+      "Bash(del \"d:\\\\NewNeuro\\\\scripts\\\\qdrant_check.ps1\")",
+      "Bash(python -m tools.memory_cli:*)",
+      "Bash(python -m pytest tests/test_memory_integration.py -v --tb=short)"
     ]
   }
 }

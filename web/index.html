@@ -1580,7 +1580,6 @@
           <img class="sidebar-character-avatar" src="${char.image_url}" alt="${char.name}" />
           <div class="sidebar-character-info">
             <div class="sidebar-character-name">${char.name}</div>
-            <div class="sidebar-character-persona">${truncateText(char.persona, 40)}</div>
           </div>
         `;
         item.addEventListener('click', () => {
@@ -1633,8 +1632,9 @@
         if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }
       });
       document.getElementById('send').addEventListener('click', send);
-      const voiceBtn = document.getElementById('voiceMode');
-      voiceBtn?.addEventListener('click', ()=>{ window.location.href = '/voice'; });
+      // VOICE_MODE_DISABLED: Voice mode button handler commented out
+      // const voiceBtn = document.getElementById('voiceMode');
+      // voiceBtn?.addEventListener('click', ()=>{ window.location.href = '/voice'; });
       document.getElementById('theme').addEventListener('click', toggleTheme);
       const loginBtn = document.getElementById('loginBtn');
       if (loginBtn){
@@ -1711,20 +1711,25 @@
 
   <div class="page">
     <div class="topbar">
-      <div class="topbar-actions">
+      <div class="topbar-left">
         <button type="button" id="sidebarToggle" class="theme-btn icon-only" aria-label="Toggle sidebar">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 12h18M3 6h18M3 18h18"/>
           </svg>
         </button>
+      </div>
+      <div class="topbar-actions">
         <button id="loginBtn" class="theme-btn" aria-label="Sign in">Sign in</button>
         <div id="clerkUserButton" class="user-button" hidden></div>
+        <!-- VOICE_MODE_DISABLED: Voice mode button commented out -->
+        <!--
         <button id="voiceMode" class="theme-btn icon-only" aria-label="Open voice mode">
           <svg class="icon icon-mic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 16.5a4 4 0 0 0 4-4V7.5a4 4 0 1 0-8 0v5a4 4 0 0 0 4 4z" />
             <path d="M8 11.25a4 4 0 0 0 8 0M12 16.5v4.25M15 21.75H9" />
           </svg>
         </button>
+        -->
         <button id="theme" class="theme-btn icon-only" aria-label="Toggle theme"><span aria-hidden="true">&#9728;</span></button>
       </div>
     </div>

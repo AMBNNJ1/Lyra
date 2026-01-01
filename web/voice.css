@@ -1,3 +1,7 @@
+/* VOICE_MODE_DISABLED: This stylesheet is not currently in use.
+   Voice mode styling - the /voice route is disabled.
+   To re-enable, uncomment the /voice route in server.py */
+
 :root {
   color-scheme: dark;
 
@@ -518,6 +522,10 @@ body {
   justify-content: center;
   z-index: 200;
   padding: var(--space-4);
+}
+
+.rpm-modal[hidden] {
+  display: none;
 }
 
 .onboarding-panel {

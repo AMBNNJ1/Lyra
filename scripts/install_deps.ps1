@@ -36,9 +36,7 @@ if (-not (Test-Path $venvPy)) {
 & $pip install sentence-transformers
 & $pip install httpx trafilatura tenacity pydantic
 & $pip install flask
-# Vector DB: using local SQLite (default) or remote Qdrant
-# Qdrant client (for remote vector DB)
-& $pip install qdrant-client
+# Memory uses mem0 service
 # Python 3.13 removed audioop; install backport for WAV post-processing
 try {
   & $pip install audioop-lts

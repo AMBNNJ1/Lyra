@@ -5,7 +5,6 @@ This checklist keeps the web companion focused and shippable. Tackle items in or
 ## 1. Core Experience
 
 - **Set up infrastructure**
-  - Provision Qdrant (cloud or self-hosted) and record `QDRANT_URL`, `QDRANT_API_KEY`.
   - Deploy or run the Mem0 Node service locally on `http://127.0.0.1:4040`.
   - Configure Clerk application (publishable key + issuer/JWKS URL).
 - **Backend**
@@ -15,7 +14,7 @@ This checklist keeps the web companion focused and shippable. Tackle items in or
   - Chat page shows avatar hero video, streaming transcript, emotion cue, and sign-in modal.
   - Voice page captures mic input, sends chat requests, and plays Kokoro audio.
 
-Done when: chatting and talking works end-to-end with memories persisting in Qdrant.
+Done when: chatting and talking works end-to-end with memories persisting.
 
 ## 2. Memory Quality
 
@@ -32,21 +31,21 @@ Done when: Lyra recalls preferences across sessions and stored items look clean.
 - Expose a ?Search the web? action in the chat UI that renders `pack_for_context` results.
 - Teach the agent how to cite URLs in replies.
 
-Done when: a query like ?What happened with Qdrant this week?? returns grounded answers with source links.
+Done when: a query like ?What happened this week?? returns grounded answers with source links.
 
 ## 4. Deployment
 
 - Host the Flask service (e.g., Render, Fly.io, Railway) and verify HTTPS.
 - Deploy the static site to Vercel using `vercel.json` and set `BACKEND_URL` plus Clerk env vars.
-- Configure production Mem0 endpoint and Qdrant credentials.
+- Configure production Mem0 endpoint.
 
-Done when: the public URL loads the chat page, sign-in works, and the backend talks to Qdrant.
+Done when: the public URL loads the chat page, sign-in works, and the backend persists memories.
 
 ## 5. Quality & Monitoring
 
 - Run `python -m pytest` in CI (GitHub Actions or other) on every push.
 - Add logging for memory writes, search usage, and Clerk failures.
-- Set up health checks for Mem0 and Qdrant connectivity.
+- Set up health checks for Mem0 connectivity.
 
 Done when: you can spot/auth troubleshoot issues quickly and the test suite guards regressions.
 

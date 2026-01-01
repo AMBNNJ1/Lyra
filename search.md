@@ -45,4 +45,4 @@ Include the result string in the LLM prompt or stream it back to the chat UI. Ea
 - `max_chars_per_page` controls how much text you send into the LLM context; keep it small for faster responses.
 - If you want summarised answers instead of raw snippets, call Brave?s `chat/completions` endpoint with `model="brave"`.
 
-With the keys in place, Lyra can blend remembered facts from Qdrant with the latest information pulled from the web.
+With the keys in place, Lyra can blend remembered facts from memory with the latest information pulled from the web.

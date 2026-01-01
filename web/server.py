@@ -20,7 +20,8 @@ if str(ROOT) not in sys.path:
 
 from src.neuro_mvp.web_session import WebAgentSession
 from src.neuro_mvp.memory import MemoryClient
-from src.neuro_mvp.tts_kokoro import KokoroTTS
+# VOICE_MODE_DISABLED: TTS import commented out
+# from src.neuro_mvp.tts_kokoro import KokoroTTS
 from src.neuro_mvp.clerk_auth import ClerkVerifier, ClerkAuthError
 from src.neuro_mvp.characters import (
     Character,
@@ -50,7 +51,7 @@ def _load_clerk_verifier() -> ClerkVerifier:
         ) from exc
 
 
-load_dotenv()  # ensure QDRANT_URL, QDRANT_API_KEY, OPENAI_BASE_URL, etc.
+load_dotenv()  # ensure OPENAI_BASE_URL, MEM0_BASE_URL, etc.
 
 CLERK = _load_clerk_verifier()
 CLERK_PUBLISHABLE_KEY = os.getenv("CLERK_PUBLISHABLE_KEY")
@@ -75,9 +76,10 @@ if not CLERK_PUBLISHABLE_KEY:
 SESSIONS: Dict[str, WebAgentSession] = {}
 _SESSIONS_LOCK = threading.Lock()
 BASE_CONFIG: dict | None = None
-TTS_ENGINE: KokoroTTS | None = None
-_TTS_WARM_STARTED = False
-_TTS_WARM_LOCK = threading.Lock()
+# VOICE_MODE_DISABLED: TTS engine globals commented out
+# TTS_ENGINE: KokoroTTS | None = None
+# _TTS_WARM_STARTED = False
+# _TTS_WARM_LOCK = threading.Lock()
 
 # Character data storage
 DATA_DIR = ROOT / "data"
@@ -278,33 +280,46 @@ def _sanitize_user_id(uid: str) -> str:
     return slug or "default"
 
 
-def _session_for_user(user_id: str) -> WebAgentSession:
+def _session_for_user(user_id: str, character: Optional[Character] = None) -> WebAgentSession:
+    """Get or create a session for a user+character combination.
+
+    Memory isolation: Each user+character pair gets its own session and memory scope.
+    Session key format: {user_id}_{character_id}
+    """
     cfg = ensure_base_config()
+
+    # Load character if not provided
+    if character is None:
+        character = get_user_selected_character(user_id)
+
+    char_id = character.id if character else DEFAULT_CHARACTER_ID
+    session_key = f"{user_id}_{char_id}"  # Composite key for isolation
+
     with _SESSIONS_LOCK:
-        sess = SESSIONS.get(user_id)
+        sess = SESSIONS.get(session_key)
         if sess is None:
             import copy as _copy
 
             c2 = _copy.deepcopy(cfg)
             mem_cfg = c2.setdefault("memory", {})
-            provider = (mem_cfg.get("provider") or "qdrant").lower()
+            provider = (mem_cfg.get("provider") or "mem0").lower()
             mem_cfg.setdefault(provider, {})
             mem_cfg[provider]["user_label"] = f"User is {user_id}."
 
-            # Load user's selected character
-            character = get_user_selected_character(user_id)
-
-            sess = WebAgentSession(c2, user_id=user_id, character=character)
-            SESSIONS[user_id] = sess
+            # Pass composite user_id for memory isolation
+            composite_user_id = session_key
+            sess = WebAgentSession(c2, user_id=composite_user_id, character=character)
+            SESSIONS[session_key] = sess
         return sess
 
 
-def _refresh_session_character(user_id: str, character: Character) -> None:
-    """Update an existing session with a new character."""
-    with _SESSIONS_LOCK:
-        sess = SESSIONS.get(user_id)
-        if sess is not None:
-            sess.character = character
+def _refresh_session_character(user_id: str, character: Character) -> WebAgentSession:
+    """Get or create an isolated session for user+character combination.
+
+    When a user switches companions, this returns the session for that specific
+    user+character pair, providing complete memory and conversation isolation.
+    """
+    return _session_for_user(user_id, character)
 
 
 def _resolve_session(increment_guest: bool = False):
@@ -364,8 +379,8 @@ def _resolve_session(increment_guest: bool = False):
             remaining = max(GUEST_MESSAGE_LIMIT - used, 0)
 
     session_key = f"guest-{guest_key}"
+    # _session_for_user handles character loading and creates composite user_id for memory isolation
     session = _session_for_user(session_key)
-    session.mem.user_id = session_key
 
     # Store new guest ID for response cookie
     g.new_guest_id = new_guest_id
@@ -373,31 +388,32 @@ def _resolve_session(increment_guest: bool = False):
     return session, remaining, None
 
 
-def ensure_tts() -> KokoroTTS:
-    global TTS_ENGINE
-    if TTS_ENGINE is None:
-        lang = os.getenv("KOKORO_LANG", "a")
-        voice = os.getenv("KOKORO_VOICE", "af_heart")
-        TTS_ENGINE = KokoroTTS(lang_code=lang, voice=voice)
-    return TTS_ENGINE
-
-
-def _kickoff_tts_warm() -> None:
-    global _TTS_WARM_STARTED
-    if _TTS_WARM_STARTED:
-        return
-    with _TTS_WARM_LOCK:
-        if _TTS_WARM_STARTED:
-            return
-
-        def _run():
-            try:
-                ensure_tts().warm()
-            except Exception as exc:  # noqa: BLE001
-                app.logger.warning('Kokoro warm-up failed: %s', exc)
-
-        threading.Thread(target=_run, daemon=True).start()
-        _TTS_WARM_STARTED = True
+# VOICE_MODE_DISABLED: TTS helper functions commented out
+# def ensure_tts() -> KokoroTTS:
+#     global TTS_ENGINE
+#     if TTS_ENGINE is None:
+#         lang = os.getenv("KOKORO_LANG", "a")
+#         voice = os.getenv("KOKORO_VOICE", "af_heart")
+#         TTS_ENGINE = KokoroTTS(lang_code=lang, voice=voice)
+#     return TTS_ENGINE
+#
+#
+# def _kickoff_tts_warm() -> None:
+#     global _TTS_WARM_STARTED
+#     if _TTS_WARM_STARTED:
+#         return
+#     with _TTS_WARM_LOCK:
+#         if _TTS_WARM_STARTED:
+#             return
+#
+#         def _run():
+#             try:
+#                 ensure_tts().warm()
+#             except Exception as exc:  # noqa: BLE001
+#                 app.logger.warning('Kokoro warm-up failed: %s', exc)
+#
+#         threading.Thread(target=_run, daemon=True).start()
+#         _TTS_WARM_STARTED = True
 
 
 def _extract_bearer_token() -> str | None:
@@ -429,7 +445,8 @@ def require_clerk_user() -> str:
 @app.before_request
 def _before_request() -> None:
     ensure_base_config()
-    _kickoff_tts_warm()
+    # VOICE_MODE_DISABLED: TTS warm-up call commented out
+    # _kickoff_tts_warm()
 
 
 @app.route("/api/auth/config", methods=["GET"])
@@ -440,7 +457,8 @@ def auth_config():
     })
 
 MAX_CHAT_MESSAGE_LENGTH = int(os.getenv("MAX_CHAT_MESSAGE_LENGTH", "4000"))
-MAX_TTS_TEXT_LENGTH = int(os.getenv("MAX_TTS_TEXT_LENGTH", "2000"))
+# VOICE_MODE_DISABLED: TTS text length limit commented out
+# MAX_TTS_TEXT_LENGTH = int(os.getenv("MAX_TTS_TEXT_LENGTH", "2000"))
 
 
 # ==================== Character Selection API ====================
@@ -851,73 +869,74 @@ def api_emotion():
         }))
 
 
-@app.route("/api/tts", methods=["POST"])
-def api_tts():
-    token = _extract_bearer_token()
-    if token:
-        require_clerk_user()
-    else:
-        # Use _resolve_session logic to identify guest (header or cookie)
-        # This doesn't increment quota but validates guest identity
-        session, _, error_resp = _resolve_session(increment_guest=False)
-        if error_resp is not None:
-            return error_resp
-        if session is None:
-            abort(401, description="Unable to resolve user session")
-
-    data = request.get_json(force=True, silent=True) or {}
-    text = (data.get("text") or "").strip()
-    voice = (data.get("voice") or os.getenv("KOKORO_VOICE", "af_heart")).strip()
-    if not text:
-        return jsonify({"error": "no_text"}), 400
-    if len(text) > MAX_TTS_TEXT_LENGTH:
-        return jsonify({"error": "text_too_long", "max_length": MAX_TTS_TEXT_LENGTH}), 400
-
-    cfg = ensure_base_config()
-    tts_provider = (cfg.get("tts", {}).get("provider") or "kokoro").lower()
-
-    try:
-        if tts_provider == "runpod":
-            # Use RunPod serverless TTS
-            from src.neuro_mvp.runpod_client import RunPodTTSClient, RunPodTTSConfig
-            tts_cfg = cfg.get("tts", {})
-            endpoint_id = tts_cfg.get("runpod_endpoint_id") or os.getenv("RUNPOD_TTS_ENDPOINT", "")
-            client = RunPodTTSClient(RunPodTTSConfig(
-                endpoint_id=endpoint_id,
-                api_key=os.getenv("RUNPOD_API_KEY"),
-                voice=voice,
-            ))
-            data_bytes = client.synthesize(text, voice)
-        else:
-            # Use local Kokoro TTS
-            from tempfile import mkstemp
-            import os as _os
-
-            tts = ensure_tts()
-            if voice and getattr(tts, "voice", None) != voice:
-                tts = KokoroTTS(lang_code=os.getenv("KOKORO_LANG", "a"), voice=voice)
-            fd, tmp_path = mkstemp(suffix=".wav")
-            _os.close(fd)
-            try:
-                tts.synthesize_to_wav(text, tmp_path)
-                with open(tmp_path, "rb") as f:
-                    data_bytes = f.read()
-            finally:
-                try:
-                    _os.remove(tmp_path)
-                except Exception:  # noqa: BLE001
-                    pass
-
-        headers = {"Cache-Control": "no-store", "Content-Disposition": "inline; filename=tts.wav"}
-        resp = Response(data_bytes, mimetype="audio/wav", headers=headers)
-        return _set_guest_cookie(resp)
-    except Exception as exc:  # noqa: BLE001
-        resp = jsonify({
-            "error": "synthesis_failed",
-            "message": f"TTS failed: {exc}",
-        })
-        resp.status_code = 500
-        return _set_guest_cookie(resp)
+# VOICE_MODE_DISABLED: /api/tts endpoint commented out
+# @app.route("/api/tts", methods=["POST"])
+# def api_tts():
+#     token = _extract_bearer_token()
+#     if token:
+#         require_clerk_user()
+#     else:
+#         # Use _resolve_session logic to identify guest (header or cookie)
+#         # This doesn't increment quota but validates guest identity
+#         session, _, error_resp = _resolve_session(increment_guest=False)
+#         if error_resp is not None:
+#             return error_resp
+#         if session is None:
+#             abort(401, description="Unable to resolve user session")
+#
+#     data = request.get_json(force=True, silent=True) or {}
+#     text = (data.get("text") or "").strip()
+#     voice = (data.get("voice") or os.getenv("KOKORO_VOICE", "af_heart")).strip()
+#     if not text:
+#         return jsonify({"error": "no_text"}), 400
+#     if len(text) > MAX_TTS_TEXT_LENGTH:
+#         return jsonify({"error": "text_too_long", "max_length": MAX_TTS_TEXT_LENGTH}), 400
+#
+#     cfg = ensure_base_config()
+#     tts_provider = (cfg.get("tts", {}).get("provider") or "kokoro").lower()
+#
+#     try:
+#         if tts_provider == "runpod":
+#             # Use RunPod serverless TTS
+#             from src.neuro_mvp.runpod_client import RunPodTTSClient, RunPodTTSConfig
+#             tts_cfg = cfg.get("tts", {})
+#             endpoint_id = tts_cfg.get("runpod_endpoint_id") or os.getenv("RUNPOD_TTS_ENDPOINT", "")
+#             client = RunPodTTSClient(RunPodTTSConfig(
+#                 endpoint_id=endpoint_id,
+#                 api_key=os.getenv("RUNPOD_API_KEY"),
+#                 voice=voice,
+#             ))
+#             data_bytes = client.synthesize(text, voice)
+#         else:
+#             # Use local Kokoro TTS
+#             from tempfile import mkstemp
+#             import os as _os
+#
+#             tts = ensure_tts()
+#             if voice and getattr(tts, "voice", None) != voice:
+#                 tts = KokoroTTS(lang_code=os.getenv("KOKORO_LANG", "a"), voice=voice)
+#             fd, tmp_path = mkstemp(suffix=".wav")
+#             _os.close(fd)
+#             try:
+#                 tts.synthesize_to_wav(text, tmp_path)
+#                 with open(tmp_path, "rb") as f:
+#                     data_bytes = f.read()
+#             finally:
+#                 try:
+#                     _os.remove(tmp_path)
+#                 except Exception:  # noqa: BLE001
+#                     pass
+#
+#         headers = {"Cache-Control": "no-store", "Content-Disposition": "inline; filename=tts.wav"}
+#         resp = Response(data_bytes, mimetype="audio/wav", headers=headers)
+#         return _set_guest_cookie(resp)
+#     except Exception as exc:  # noqa: BLE001
+#         resp = jsonify({
+#             "error": "synthesis_failed",
+#             "message": f"TTS failed: {exc}",
+#         })
+#         resp.status_code = 500
+#         return _set_guest_cookie(resp)
 
 
 @app.route("/")
@@ -926,10 +945,11 @@ def index():
     return send_from_directory(str(web_dir), "index.html")
 
 
-@app.route("/voice")
-def voice_mode():
-    web_dir = WEB_DIR
-    return send_from_directory(str(web_dir), "voice.html")
+# VOICE_MODE_DISABLED: /voice route commented out
+# @app.route("/voice")
+# def voice_mode():
+#     web_dir = WEB_DIR
+#     return send_from_directory(str(web_dir), "voice.html")
 
 
 @app.route("/favicon.ico")

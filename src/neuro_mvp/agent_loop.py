@@ -219,18 +219,20 @@ class Controller:
             if val:
                 mem_lines.append(f"- {val}")
         tools_block = (
-            "Available tools (use only when necessary):\n"
-            "- search(query, k=6) — web search results list\n"
-            "- browse(url, max_chars=4000) — fetch and extract page text\n"
-            "- retrieve_memory(query, top_k=8) — query long-term memory\n"
-            "- store_memory(text, label='facts') — append memory entry\n"
+            "Available tools:\n"
+            "- search(query, k=6) - Web search for current info, news, facts, or verification\n"
+            "- browse(url, max_chars=4000) - Fetch full content from a specific URL\n"
+            "- retrieve_memory(query, top_k=8) - Query your long-term memory about this user\n"
+            "- store_memory(text, label='facts') - Save important information for later\n\n"
+            "Use search proactively when it would improve your response - for current events, "
+            "recent information, or when you want to verify facts.\n"
         )
         schema_block = (
-            "Default to a short conversational message (plain text).\n"
-            "Only when an external tool is essential, respond with ONLY JSON: {\"thought\": \"...\", \"action\": {\"name\": \"...\", \"args\": {}}}.\n"
+            "For conversational responses, reply with plain text.\n"
+            "When using a tool, respond with JSON: {\"thought\": \"...\", \"action\": {\"name\": \"...\", \"args\": {}}}.\n"
         )
         return (
-            "You are Lyra. Prefer brief, engaging interaction; use tools sparingly.\n"
+            "You are Lyra. Be engaging and helpful. Use search when it adds value.\n"
             + tools_block
             + schema_block
             + f"Goal: {goal.text}\nTask: {task.text}\nRelevant memory:\n" + "\n".join(mem_lines)

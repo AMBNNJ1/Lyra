@@ -1,11 +1,10 @@
 # Lyra Memory Architecture
 
-Lyra stores everything you share in Qdrant through the Mem0 bridge. This document explains how memories are structured, how they flow between services, and which knobs you can tweak.
+Lyra stores everything you share through the Mem0 service. This document explains how memories are structured, how they flow between services, and which knobs you can tweak.
 
 ## Components
 
-- **Mem0 service** (`mem0-service/`): Node.js API that listens on `MEM0_BASE_URL` (default `http://127.0.0.1:4040`). It normalizes reads/writes and batches calls to Qdrant.
-- **Qdrant**: vector database that holds long-term memories, indexed by user ID plus semantic tags.
+- **Mem0 service** (`mem0-service/`): Node.js API that listens on `MEM0_BASE_URL` (default `http://127.0.0.1:4040`). It normalizes reads/writes and handles memory persistence.
 - **`MemoryClient`** (`src/neuro_mvp/memory.py`): Python facade used by the Flask app to fetch context, log interactions, and execute tools.
 - **`MemoryAutoUpdater`** (`src/neuro_mvp/memory_auto.py`): asks an LLM to summarize each turn into durable facts/goals.
 
@@ -14,7 +13,7 @@ Lyra stores everything you share in Qdrant through the Mem0 bridge. This documen
 1. Browser sends a chat/voice message.
 2. Flask calls `MemoryClient.retrieve_context` to assemble persona, user profile, working summary, and long-term facts for the prompt.
 3. After generating a reply, `MemoryClient.log_interaction` writes the exchange and `MemoryAutoUpdater.process_turn` extracts new memories (preferences, goals, general notes).
-4. Mem0 pushes inserts/updates into Qdrant. The next turn reads them back through the same service.
+4. Mem0 persists the data. The next turn reads them back through the same service.
 
 ## Collections & Labels
 
@@ -41,7 +40,7 @@ Memories are partitioned by label so prompts stay focused:
 }
 ```
 
-Each block contains `{label, value}` pairs drawn from Qdrant vectors. Persona and user data are always included first to anchor the conversation.
+Each block contains `{label, value}` pairs. Persona and user data are always included first to anchor the conversation.
 
 ## Configuration
 
@@ -51,9 +50,7 @@ Set the following keys in `.env`:
 
 ```
 MEM0_BASE_URL=http://127.0.0.1:4040
-QDRANT_URL=https://<cluster>.cloud.qdrant.io:6333
-QDRANT_API_KEY=<secret>
-MEMORY_PROVIDER=qdrant
+MEMORY_PROVIDER=mem0
 MEMORY_USER_LABEL=User is Noah.
 ```
 
@@ -70,12 +67,12 @@ MEMORY_DEBUG=0|1
 
 ```
 memory:
-  provider: qdrant
+  provider: mem0
   auto:
     enable: true
     importance_threshold: 6
     max_items: 4
-  persona: "Lyra is a kind AI companion who remembers details." 
+  persona: "Lyra is a kind AI companion who remembers details."
   user_label: "User is Noah."
 ```
 

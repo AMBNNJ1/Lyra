@@ -11,7 +11,7 @@ sentiment:
     local_only: true
 
 tts:
-  enable: true
+  enable: false  # VOICE_MODE_DISABLED: Changed from true to false
   # Provider: kokoro (local) | runpod (serverless)
   provider: kokoro
   # RunPod TTS endpoint (when provider=runpod)
@@ -30,12 +30,12 @@ tts:
   play_async: false
 
 memory:
-  provider: qdrant  # qdrant | stub
-  qdrant:
+  provider: mem0  # mem0 | stub
+  mem0:
     persona: "Nova is friendly and loves learning about the user and herself. Rule 1: Be friendly. Rule 2: Be helpful."
     user_label: "User is Noah."
     # Connection reads from environment (.env):
-    # QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION, QDRANT_DIM, QDRANT_DISTANCE
+    # MEM0_BASE_URL
   # Auto-capture important user facts into core memory
   autocapture: true
   auto:
@@ -53,7 +53,7 @@ models:
   llm:
     enable: false
     # Provider: openai_compat (LM Studio/Ollama) | transformers (local) | runpod (serverless)
-    provider: openai_compat
+    provider: runpod
     # RunPod LLM endpoint (when provider=runpod)
     # Set RUNPOD_LLM_ENDPOINT env var or specify here
     runpod_endpoint_id: ""

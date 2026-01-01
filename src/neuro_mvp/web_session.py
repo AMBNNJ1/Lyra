@@ -21,6 +21,35 @@ from .qwen import QwenLLM, LLMConfig
 from .agent_loop import Controller, build_tool_registry, Task, Goal
 from .memory import MemoryClient  # re-import type for helper signature clarity
 
+SEARCH_INSTRUCTIONS = '''
+
+## Web Search Capabilities
+
+You have real-time web search access. Your training data has a knowledge cutoff, so recent information requires a search.
+
+### When to Search (be proactive!)
+Search freely to provide richer, more accurate responses:
+- **Recent events**: News, releases, updates, announcements
+- **Current facts**: Prices, availability, schedules, weather, sports scores
+- **Evolving topics**: Technology, politics, entertainment, science discoveries
+- **Verification**: When uncertain about a fact or want to confirm details
+- **Specifics**: Products, people, companies, places, events the user asks about
+- **Time-sensitive queries**: "latest", "current", "new", "recent", "today"
+
+### When NOT to Search
+- Timeless knowledge (math, established science, history, grammar)
+- Personal/conversational exchanges ("how are you", "tell me a joke")
+- Information already in your long-term memory about this user
+
+### Best Practices
+1. Craft specific, targeted queries
+2. Cite sources briefly (e.g., "According to [source]...")
+3. Synthesize information rather than dumping raw results
+4. If search fails, acknowledge this honestly
+
+Format tool calls as JSON: {"thought": "reason", "action": {"name": "search", "args": {"query": "your query"}}}.
+'''
+
 
 def _try_direct_memory_answer(mem: MemoryClient, question: str) -> Optional[str]:
     q = (question or "").strip().lower()
@@ -69,11 +98,11 @@ class WebAgentSession:
     ):
         self.cfg = cfg
         self.character = character  # Character persona for this session
-        self.mem = MemoryClient(provider=cfg.get("memory", {}).get("provider", "qdrant"), user_id=user_id)
+        self.mem = MemoryClient(provider=cfg.get("memory", {}).get("provider", "mem0"), user_id=user_id)
         mem_cfg = cfg.get("memory", {})
-        qdrant_cfg = mem_cfg.get("qdrant", {})
-        persona = qdrant_cfg.get("persona") or mem_cfg.get("persona") or "Nova is friendly."
-        user_label = qdrant_cfg.get("user_label") or mem_cfg.get("user_label") or f"User is {user_id}."
+        mem0_cfg = mem_cfg.get("mem0", {})
+        persona = mem0_cfg.get("persona") or mem_cfg.get("persona") or "Nova is friendly."
+        user_label = mem0_cfg.get("user_label") or mem_cfg.get("user_label") or f"User is {user_id}."
         self.mem.ensure_agent(persona=persona, user_label=user_label, model=None, embedding=None)
         try:
             # Simple startup note
@@ -212,7 +241,7 @@ class WebAgentSession:
                (f"\nCurrent goals:\n{goals_text}" if goals_text else "") + \
                (f"\nWorking summary:\n{working_text}" if working_text else "") + \
                (f"\nLong-term memory:\n{long_term_text}" if long_term_text else "") + \
-               "\n\nIf the user's message requires up-to-date information, current events, or facts not in memory, use the 'search' tool to query the web before responding. Format tool calls as JSON: {\"thought\": \"reason\", \"action\": {\"name\": \"search\", \"args\": {\"query\": \"your query\"}}}."
+               SEARCH_INSTRUCTIONS
         return seed
 
     def chat(self, user_text: str) -> Dict[str, Any]:

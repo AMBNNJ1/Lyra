@@ -7,7 +7,7 @@ System Overview
 ---------------
 
 ```
-Browser (chat or voice) ? Clerk JS ? Flask API ? Mem0 service ? Qdrant
+Browser (chat or voice) ? Clerk JS ? Flask API ? Mem0 service
                                  ? Kokoro TTS ? Emotion engine ? Web search
 ```
 
@@ -18,13 +18,13 @@ Browser (chat or voice) ? Clerk JS ? Flask API ? Mem0 service ? Qdrant
 
 2. **Conversation Loop** (handled in `web/server.py` + `src/neuro_mvp`)
    - Request enters `api/chat` (JSON) or `api/chat/stream` (SSE).
-   - `MemoryClient` pulls persona, user profile, and recent context from Mem0/Qdrant.
+   - `MemoryClient` pulls persona, user profile, and recent context from Mem0.
    - `MemoryAutoUpdater` watches each turn to extract new facts/goals and writes them back through Mem0.
    - `EmotionEngine` appraises user text to tag the current affect line that feeds the LLM prompt and optionally the avatar.
    - Replies stream back to the browser; the voice page also calls `/api/tts` to render audio via Kokoro.
 
 3. **Storage**
-   - Mem0 service (Node) converts API calls into Qdrant payloads. Configure its `.env` with `QDRANT_URL` and `QDRANT_API_KEY`.
+   - Mem0 service (Node) handles memory persistence. Configure its `.env` as needed.
    - Items are labeled (`profile`, `preferences`, `facts`, `goals`, `general`) so retrieval can build tailored prompt sections.
 
 Primary Components
@@ -37,7 +37,7 @@ Primary Components
   - `/voice`, `/landing`, `/` ? serve static pages.
 
 - `src/neuro_mvp/memory.py`
-  - Client facade for Mem0/Qdrant.
+  - Client facade for Mem0.
   - `retrieve_context(query)` assembles persona, user, working summary, and long-term snippets.
 
 - `src/neuro_mvp/memory_auto.py`
@@ -63,7 +63,7 @@ Testing & Diagnostics
 ---------------------
 
 - `python -m pytest` ? runs backend unit tests (Clerk verifier, memory helpers, auto memory, search utilities, API guest gating).
-- `tools/memory_dashboard.py` ? inspect what Mem0/Qdrant has stored for a given user.
+- `tools/memory_dashboard.py` ? inspect what Mem0 has stored for a given user.
 - `tools/memory_cli.py` ? quick CRUD for memories when debugging.
 
 Extending Lyra

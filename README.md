@@ -5,13 +5,13 @@ Lyra is a web-first companion that chats in real time, remembers what you share,
 - **Chat** ? text interface with a looping hero video of Lyra, live memory cues, and Clerk authentication gates.
 - **Voice** ? push-to-talk mode that records speech, streams replies, and plays back synthesized audio.
 
-Behind the scenes Lyra combines a Flask API, the Mem0 memory bridge talking to Qdrant, and optional web search tools so conversations stay grounded and personal.
+Behind the scenes Lyra combines a Flask API, the Mem0 memory service, and optional web search tools so conversations stay grounded and personal.
 
 ## Highlights
 
 - **Avatar-first UI** ? static hero image/video and accessible layout served from `/web/index.html`.
 - **Secure auth with Clerk** ? Clerk JS handles sign in while the Flask backend verifies tokens server-side.
-- **Persistent memory** ? Mem0 writes every fact and reflection into Qdrant and exposes it back to the agent.
+- **Persistent memory** ? Mem0 stores every fact and reflection and exposes it back to the agent.
 - **Voice conversations** ? `/voice` reuses the same backend for chat plus Kokoro TTS and in-browser speech recognition.
 - **Search & tools** ? Brave/Serper search wrappers (optional) return citations for the agent.
 - **Tested core** ? pytest suite covers emotion heuristics, Clerk verification, memory helpers, auto memory, web utilities, and key API flows.
@@ -19,20 +19,19 @@ Behind the scenes Lyra combines a Flask API, the Mem0 memory bridge talking to Q
 ## Architecture Overview
 
 ```
-Browser (chat + voice)          Clerk              Mem0 service            Qdrant Cloud
-        |                        |                       |                     |
-        | 1. sign in             |<--------------------->|                     |
-        |----------------------->|                       |                     |
-        |                        |                       |                     |
-        | 2. chat/voice fetch    v                       |                     |
-        |--------------------> Flask API <-------------->| 3. memory sync ---> |
-        |                        |                       |<--------------------|
+Browser (chat + voice)          Clerk              Mem0 service
         |                        |                       |
-        |<------------------ streaming responses + TTS audio ------------------|
+        | 1. sign in             |<--------------------->|
+        |----------------------->|                       |
+        |                        |                       |
+        | 2. chat/voice fetch    v                       |
+        |--------------------> Flask API <-------------->| 3. memory sync
+        |                        |                       |
+        |<------------------ streaming responses + TTS audio ---|
 ```
 
 - `web/server.py` exposes REST/SSE endpoints for chat, memory polling, TTS, and static assets.
-- `mem0-service/` (Node) mediates between the Flask app and Qdrant (`MEM0_BASE_URL`).
+- `mem0-service/` (Node) provides the memory bridge (`MEM0_BASE_URL`).
 - `src/neuro_mvp` contains the agent runtime (memory client, auto updater, emotion engine, web search tooling).
 
 ## Repository Map
@@ -42,7 +41,7 @@ Browser (chat + voice)          Clerk              Mem0 service            Qdran
 ??? src/neuro_mvp/      # Python backend logic (memory, emotion, tools, auth)
 ??? tools/              # Diagnostics (memory dashboard, CLI)
 ??? scripts/            # PowerShell helpers for setup and deployment
-??? mem0-service/       # Node.js bridge that writes to Qdrant
+??? mem0-service/       # Node.js memory bridge service
 ??? tests/              # pytest suite exercising core modules and APIs
 ??? README.md           # You are here
 ```
@@ -53,7 +52,6 @@ Browser (chat + voice)          Clerk              Mem0 service            Qdran
 
 - Python 3.10+
 - Node.js 18+
-- A Qdrant Cloud cluster (or self-hosted instance)
 - Clerk account with a publishable key and server-side issuer/JWKS URL
 
 ### 2. Install Python dependencies
@@ -69,7 +67,7 @@ pip install -r requirements.txt
 ```powershell
 cd mem0-service
 npm install
-copy .env.example .env   # set QDRANT_URL and QDRANT_API_KEY
+copy .env.example .env   # configure as needed
 npm run dev
 ```
 
@@ -86,8 +84,6 @@ CLERK_JWKS_URL=
 BRAVE_SUBSCRIPTION_TOKEN=   # optional search
 SERPER_API_KEY=             # optional search fallback
 MEM0_BASE_URL=http://127.0.0.1:4040
-QDRANT_URL=
-QDRANT_API_KEY=
 ```
 
 Tune `config.yaml` for model selection, memory thresholds, and Kokoro TTS voice.
@@ -115,17 +111,17 @@ python -m pytest
 ## Additional Documentation
 
 - [`agent.md`](agent.md) ? conversational flow, Clerk gating, and streaming behaviour.
-- [`memory.md`](memory.md) ? how Mem0 and Qdrant structure Lyra?s memories.
+- [`memory.md`](memory.md) ? how Mem0 structures Lyra?s memories.
 - [`search.md`](search.md) ? Brave/Serper integration patterns.
 - [`emotion.md`](emotion.md) ? OCC-inspired affect system powering the avatar.
 - [`task.md`](task.md) ? development roadmap for future iterations.
 
 ## Deployment Checklist
 
-1. Provision Qdrant and set `QDRANT_URL` / `QDRANT_API_KEY` for the Mem0 service.
+1. Configure Mem0 service environment variables.
 2. Configure Clerk keys in both the backend (`.env`) and frontend (`web/index.html` fetches `/api/auth/config`).
 3. Host the Flask API (Render, Fly.io, self-managed) and expose HTTPS for the web client.
 4. Deploy the static site to Vercel (or another CDN) pointing `BACKEND_URL` to the API host.
 5. Verify chat, voice, and memory persistence in production.
 
-Lyra is designed to be privacy-respectful and transparent?memories live in your Qdrant instance, Clerk protects user interactions, and every response can cite where the information came from.
+Lyra is designed to be privacy-respectful and transparent?memories are stored securely, Clerk protects user interactions, and every response can cite where the information came from.

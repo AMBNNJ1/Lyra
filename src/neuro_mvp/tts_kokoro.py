@@ -1,3 +1,7 @@
+"""VOICE_MODE_DISABLED: This module is not currently in use.
+Kokoro TTS engine wrapper - commented out to disable voice mode.
+Uncomment imports in server.py and run_agent.py to re-enable.
+"""
 from __future__ import annotations
 
 import atexit

@@ -15,7 +15,8 @@ from src.neuro_mvp.memory_utils import try_direct_memory_answer
 from src.neuro_mvp.openai_compat import ChatLLMConfig, OpenAIChatLLM
 from src.neuro_mvp.qwen import LLMConfig, QwenLLM
 from src.neuro_mvp.sentiment import analyze_text_sentiment
-from src.neuro_mvp.tts_kokoro import KokoroTTS
+# VOICE_MODE_DISABLED: TTS import commented out
+# from src.neuro_mvp.tts_kokoro import KokoroTTS
 from src.neuro_mvp.utils import safe_print
 from src.neuro_mvp.web_search_tool import pack_for_context, search_and_extract
 
@@ -43,23 +44,24 @@ _ensure_utf8_stdio()
 # Configuration and utility functions moved to config.py and utils.py
 
 
-async def synthesize(cfg: Dict[str, Any], text: str) -> Optional[Path]:
-    """Synthesize text to speech using Kokoro TTS."""
-    tts_cfg = get_tts_config()
-    if not tts_cfg.get("enable", False):
-        return None
-    
-    kokoro_cfg = tts_cfg.get("kokoro", {})
-    voice = kokoro_cfg.get("voice", "af_heart")
-    lang = kokoro_cfg.get("lang", "a")
-    out_path = Path(kokoro_cfg.get("out_path", "response.wav"))
-    
-    try:
-        tts = KokoroTTS(lang_code=lang, voice=voice)
-        tts.synthesize_to_wav(text, str(out_path))
-        return out_path
-    except Exception as e:
-        raise TTSError(f"TTS synthesis failed: {e}") from e
+# VOICE_MODE_DISABLED: TTS synthesize function commented out
+# async def synthesize(cfg: Dict[str, Any], text: str) -> Optional[Path]:
+#     """Synthesize text to speech using Kokoro TTS."""
+#     tts_cfg = get_tts_config()
+#     if not tts_cfg.get("enable", False):
+#         return None
+#
+#     kokoro_cfg = tts_cfg.get("kokoro", {})
+#     voice = kokoro_cfg.get("voice", "af_heart")
+#     lang = kokoro_cfg.get("lang", "a")
+#     out_path = Path(kokoro_cfg.get("out_path", "response.wav"))
+#
+#     try:
+#         tts = KokoroTTS(lang_code=lang, voice=voice)
+#         tts.synthesize_to_wav(text, str(out_path))
+#         return out_path
+#     except Exception as e:
+#         raise TTSError(f"TTS synthesis failed: {e}") from e
 
 
 class AgentRuntime:
@@ -80,13 +82,13 @@ class AgentRuntime:
     def _init_memory(self) -> MemoryClient:
         """Initialize memory client with configuration."""
         mem_cfg = get_memory_config()
-        provider = mem_cfg.get("provider", "qdrant").lower()
-        
+        provider = mem_cfg.get("provider", "mem0").lower()
+
         try:
             mem = MemoryClient(provider=provider)
-            qdrant_cfg = mem_cfg.get("qdrant", {})
-            persona = qdrant_cfg.get("persona", "Nova is friendly.")
-            user_label = qdrant_cfg.get("user_label", "User is Sam.")
+            mem0_cfg = mem_cfg.get("mem0", {})
+            persona = mem0_cfg.get("persona", "Nova is friendly.")
+            user_label = mem0_cfg.get("user_label", "User is Sam.")
             mem.ensure_agent(persona=persona, user_label=user_label, model=None, embedding=None)
             return mem
         except Exception as e:
@@ -276,30 +278,31 @@ async def handle_turn(run: AgentRuntime, user_text: str, *, play_override: Optio
     except Exception:
         pass
 
-    wav_path = None
-    try:
-        wav_path = await synthesize(run.cfg, utterance)
-        if wav_path:
-            safe_print(f"[tts] Wrote {wav_path}")
-    except TTSError as e:
-        safe_print(f"[tts] synthesis failed: {e}")
-        wav_path = None
-
-    if wav_path:
-        tts_cfg = run.cfg.get("tts", {})
-        play_async = bool(tts_cfg.get("play_async", False))
-        auto_play_cfg = bool(tts_cfg.get("auto_play", False))
-        should_play = play_override if play_override is not None else auto_play_cfg
-        if should_play:
-            try:
-                import winsound
-
-                flags = winsound.SND_FILENAME
-                if play_async:
-                    flags |= winsound.SND_ASYNC
-                winsound.PlaySound(str(wav_path), flags)
-            except Exception as exc:
-                safe_print(f"[tts] Playback failed: {exc}")
+    # VOICE_MODE_DISABLED: TTS synthesis and playback commented out
+    # wav_path = None
+    # try:
+    #     wav_path = await synthesize(run.cfg, utterance)
+    #     if wav_path:
+    #         safe_print(f"[tts] Wrote {wav_path}")
+    # except TTSError as e:
+    #     safe_print(f"[tts] synthesis failed: {e}")
+    #     wav_path = None
+    #
+    # if wav_path:
+    #     tts_cfg = run.cfg.get("tts", {})
+    #     play_async = bool(tts_cfg.get("play_async", False))
+    #     auto_play_cfg = bool(tts_cfg.get("auto_play", False))
+    #     should_play = play_override if play_override is not None else auto_play_cfg
+    #     if should_play:
+    #         try:
+    #             import winsound
+    #
+    #             flags = winsound.SND_FILENAME
+    #             if play_async:
+    #                 flags |= winsound.SND_ASYNC
+    #             winsound.PlaySound(str(wav_path), flags)
+    #         except Exception as exc:
+    #             safe_print(f"[tts] Playback failed: {exc}")
 
     run.turn_count += 1
     if run.turn_count % 10 == 0:

@@ -14,7 +14,7 @@ An autonomous agent runs a closed loop of perceive → plan → act → observe 
 - **Memory System**
   - Working memory: rolling context window and step logs.
   - Short‑term memory: session/task state kept in Python structures.
-  - Long‑term memory: Qdrant 
+  - Long‑term memory: Mem0 service 
 
 - **Goal and Planning Module**
   - Interprets long‑term goals (from config/persona) into medium‑term objectives and short‑term tasks.
@@ -46,7 +46,7 @@ Mechanics:
 
 ### 3) Memory‑Augmented Reasoning
 
-- Retrieval before planning/answering: query Qdrant via `memory.py` (provider from `config.yaml`) for relevant user facts, prior tasks, and world knowledge.
+- Retrieval before planning/answering: query Mem0 via `memory.py` (provider from `config.yaml`) for relevant user facts, prior tasks, and world knowledge.
 - Working memory prompt sections: conversation summary, recent actions/observations, active goals, retrieved memories.
 - Memory writing policy: after meaningful steps, embed summaries and store with metadata (topic, date, goal tags, quality score).
 - Short‑term memory: session map (e.g., last N actions, transient variables) to avoid context bloat.
@@ -121,7 +121,7 @@ Tool catalog (initial):
 - `src/neuro_mvp/openai_compat.py`: wraps local OpenAI‑compatible LLMs (LM Studio). Extend with a helper to run system/instruction prompts for planner/critic roles.
 - `src/neuro_mvp/qwen.py`: optional local VLM path. Keep disabled by default unless vision needed.
 - `src/neuro_mvp/memory.py`: central memory interface. Ensure it exposes `search_memories`, `add_memory`, and tagging.
-- `src/neuro_mvp/memory_qdrant.py` and `memory_local.py`: storage backends. Confirm embeddings and metadata fields (topic, goal_tags, quality, kind=user/world/tool_result).
+- `src/neuro_mvp/memory_local.py`: storage backend. Confirm embeddings and metadata fields (topic, goal_tags, quality, kind=user/world/tool_result).
 - `src/neuro_mvp/web_search_tool.py`: web search; ensure it returns structured {title, url, snippet}.
 - `src/neuro_mvp/tts_kokoro.py`: text‑to‑speech for entertainment/feedback.
 - `src/neuro_mvp/vts.py`: avatar control; can reflect sentiment/arousal from `sentiment.py`.

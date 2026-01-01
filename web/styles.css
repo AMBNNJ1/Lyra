@@ -225,6 +225,12 @@ body.light .chip{
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
+.topbar-left{
+  position:absolute;
+  left: var(--space-4);
+  display:flex;
+  align-items:center;
+}
 .topbar-actions{
   position:absolute;
   right: var(--space-4);
@@ -481,7 +487,8 @@ button.send:disabled{
 
 @media (max-width: 980px){
   .topbar{ padding:0 16px; }
-  .topbar-actions{ position:static; right:auto; width:100%; justify-content:flex-end; }
+  .topbar-left{ position:static; left:auto; }
+  .topbar-actions{ position:static; right:auto; flex:1; justify-content:flex-end; }
   .main{ grid-template-columns: 1fr; padding:16px 12px; }
   .avatar-pane{ padding-right:0; border-right:none; }
   .unity-wrap{ position:relative; top:auto; margin:0 auto 16px; max-width:420px; }
@@ -516,7 +523,7 @@ button.send:disabled{
 
 @media (max-width: 480px){
   .topbar{ padding:0 12px; }
-  .topbar-actions{ justify-content:space-between; width:100%; gap:6px; }
+  .topbar-actions{ justify-content:flex-end; gap:6px; }
   #loginBtn{ flex:1 1 auto; min-width:0; padding:6px 8px; font-size:12px; }
   #voiceMode.theme-btn.icon-only, #theme.theme-btn.icon-only{ width:32px; height:32px; font-size:16px; }
   .composer-wrap{ padding:12px 10px 20px; }

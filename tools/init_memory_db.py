@@ -17,11 +17,8 @@ except Exception:
     load_dotenv = None  # type: ignore
 
 
-def _db_path_for_provider(provider: str) -> str:
-    prov = (provider or "qdrant").strip().lower()
-    if prov == "qdrant":
-        return os.getenv("QDRANT_COLLECTION", "memory_items")
-    return os.getenv("QDRANT_COLLECTION", "memory_items")
+def _db_path_for_provider() -> str:
+    return os.getenv("MEM0_BASE_URL", "http://127.0.0.1:4040")
 
 
 def main() -> int:
@@ -42,7 +39,7 @@ def main() -> int:
             except Exception:
                 pass
 
-    provider = os.getenv("MEMORY_PROVIDER", "qdrant").strip().lower()
+    provider = os.getenv("MEMORY_PROVIDER", "mem0").strip().lower()
     mem = MemoryClient(provider=provider)
     # Load defaults from config.yaml if present
     try:
@@ -72,7 +69,7 @@ def main() -> int:
         except Exception:
             n = 0
         print(f"[init] Indexed {n} chunks into general memory")
-    db_path = Path(_db_path_for_provider(provider)).resolve()
+    db_path = Path(_db_path_for_provider()).resolve()
     print(f"[init] Database ready: {db_path}")
     return 0
 

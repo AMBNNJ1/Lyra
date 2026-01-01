@@ -40,7 +40,7 @@ class ConfigManager:
         """Apply environment variable overrides to configuration."""
         # Memory provider override
         if memory_cfg := config.get("memory"):
-            memory_cfg["provider"] = os.getenv("MEMORY_PROVIDER", memory_cfg.get("provider", "qdrant"))
+            memory_cfg["provider"] = os.getenv("MEMORY_PROVIDER", memory_cfg.get("provider", "mem0"))
         
         # TTS configuration overrides
         if tts_cfg := config.get("tts", {}).get("kokoro", {}):
@@ -63,16 +63,16 @@ class ConfigManager:
         """Get memory-specific configuration."""
         config = self.load()
         mem_cfg = config.get("memory", {})
-        
+
         # Set defaults
-        mem_cfg.setdefault("provider", "qdrant")
-        mem_cfg.setdefault("qdrant", {})
-        
+        mem_cfg.setdefault("provider", "mem0")
+        mem_cfg.setdefault("mem0", {})
+
         # Set persona and user label defaults
-        qdrant_cfg = mem_cfg["qdrant"]
-        qdrant_cfg.setdefault("persona", "Nova is friendly and loves learning about the user and herself. Rule 1: Be friendly. Rule 2: Be helpful.")
-        qdrant_cfg.setdefault("user_label", "User is Noah.")
-        
+        mem0_cfg = mem_cfg["mem0"]
+        mem0_cfg.setdefault("persona", "Nova is friendly and loves learning about the user and herself. Rule 1: Be friendly. Rule 2: Be helpful.")
+        mem0_cfg.setdefault("user_label", "User is Noah.")
+
         return mem_cfg
     
     def get_llm_config(self) -> Dict[str, Any]:
