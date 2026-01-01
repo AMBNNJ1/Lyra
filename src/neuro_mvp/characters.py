@@ -45,9 +45,9 @@ PREDEFINED_CHARACTERS: Dict[str, Character] = {
             "neutral": "/assets/nova_video.mp4",
             "happy": "/assets/nova_happy.mp4",
             "sad": "/assets/nova_sad.mp4",
-            "anxious": "/assets/nova_anxious.mp4",
-            "angry": "/assets/nova_angry.mp4",
-            "curious": "/assets/nova_curious.mp4",
+            "anxious": "/assets/nova_video.mp4",  # fallback to neutral
+            "angry": "/assets/nova_video.mp4",  # fallback to neutral
+            "curious": "/assets/nova_video.mp4",  # fallback to neutral
         },
     ),
     "sage": Character(
@@ -60,14 +60,7 @@ PREDEFINED_CHARACTERS: Dict[str, Character] = {
         ),
         image_url="/assets/sage_avatar.png",
         is_predefined=True,
-        video_urls={
-            "neutral": "/assets/sage_neutral.mp4",
-            "happy": "/assets/sage_happy.mp4",
-            "sad": "/assets/sage_sad.mp4",
-            "anxious": "/assets/sage_anxious.mp4",
-            "angry": "/assets/sage_angry.mp4",
-            "curious": "/assets/sage_curious.mp4",
-        },
+        video_urls={},  # No video assets for Sage yet
     ),
     "echo": Character(
         id="echo",
@@ -79,14 +72,7 @@ PREDEFINED_CHARACTERS: Dict[str, Character] = {
         ),
         image_url="/assets/echo_avatar.png",
         is_predefined=True,
-        video_urls={
-            "neutral": "/assets/echo_neutral.mp4",
-            "happy": "/assets/echo_happy.mp4",
-            "sad": "/assets/echo_sad.mp4",
-            "anxious": "/assets/echo_anxious.mp4",
-            "angry": "/assets/echo_angry.mp4",
-            "curious": "/assets/echo_curious.mp4",
-        },
+        video_urls={},  # No video assets for Echo yet
     ),
 }
 

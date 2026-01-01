@@ -865,7 +865,7 @@ def api_emotion():
             "levels": {},
             "reason": "",
             "videoState": "neutral",
-            "videoUrl": "/assets/nova_neutral.mp4",
+            "videoUrl": "/assets/nova_video.mp4",
         }))
 
 
