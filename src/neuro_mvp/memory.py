@@ -37,7 +37,11 @@ class MemoryClient:
         slug = re.sub(r"[^a-zA-Z0-9]+", "-", text or "").strip("-").lower()
         return slug or "default"
 
-    def _format_memory(self, item: Dict[str, Any]) -> Dict[str, Any]:
+    def _format_memory(self, item: Dict[str, Any] | str) -> Dict[str, Any]:
+        # Handle string items from mem0 API (can return strings in some cases)
+        if isinstance(item, str):
+            label = self._infer_label(item)
+            return {"id": None, "label": label, "value": item, "score": 1.0, "raw": item}
         content = str(item.get("content") or item.get("text") or item.get("value") or "")
         metadata = item.get("metadata") or {}
         label = metadata.get("label")
