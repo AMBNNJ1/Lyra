@@ -17,3 +17,5 @@ mem0ai>=0.1.117
 runpod>=1.6.0
 # Image processing for character avatar uploads
 Pillow>=10.0.0
+# Production WSGI server
+gunicorn>=21.0.0
